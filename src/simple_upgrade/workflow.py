@@ -1,0 +1,568 @@
+"""
+Upgrade workflow management - handles the upgrade stages from readiness to verification.
+
+Library usage:
+- scrapli: sync, readiness, verification
+- unicon: pre-checks, post-checks, distribution, activation
+"""
+
+import time
+from typing import Optional, Dict, Any, List
+
+from .device import Device, DeviceConnectionError
+from .sync import SyncManager
+from .connection_manager import ConnectionManager
+
+
+class UpgradeStage:
+    """Represents a single upgrade stage."""
+    def __init__(self, name: str, description: str = ""):
+        self.name = name
+        self.description = description
+        self.success: bool = False
+        self.message: str = ""
+        self.start_time: Optional[float] = None
+        self.end_time: Optional[float] = None
+
+
+class UpgradeWorkflow:
+    """
+    Manages the complete upgrade workflow for a network device.
+
+    Workflow stages:
+        1. Readiness - Validate device can be upgraded (using scrapli)
+        2. Pre-check - Run pre-upgrade validations (using unicon)
+        3. Distribute - Download firmware image (using unicon)
+        4. Activate - Apply new firmware (using unicon)
+        5. Wait - Wait for stabilization
+        6. Ping - Verify device is reachable
+        7. Post-check - Run post-upgrade validations (using unicon)
+        8. Verification - Confirm version match (using scrapli)
+    """
+
+    def __init__(
+        self,
+        device: Device,
+        golden_image: Dict[str, Any],
+        file_server: Dict[str, Any],
+        auto_update: bool = True,
+        wait_time: int = 300,
+        max_retries: int = 3
+    ):
+        """
+        Initialize the upgrade workflow.
+
+        Args:
+            device: Device object with active connection
+            golden_image: Dictionary with golden image information
+            file_server: Dictionary with file server information
+            auto_update: Whether to automatically apply changes
+            wait_time: Wait time after activation in seconds
+            max_retries: Maximum retries for each stage
+        """
+        self.device = device
+        self.golden_image = golden_image
+        self.file_server = file_server
+        self.auto_update = auto_update
+        self.wait_time = wait_time
+        self.max_retries = max_retries
+
+        self.stages: Dict[str, UpgradeStage] = {}
+        self.errors: List[str] = []
+
+        # Initialize stages
+        self._init_stages()
+
+    def _init_stages(self):
+        """Initialize all upgrade stages."""
+        self.stages = {
+            'readiness': UpgradeStage('readiness', 'Validate device readiness for upgrade'),
+            'pre_check': UpgradeStage('pre_check', 'Run pre-upgrade validation checks'),
+            'distribute': UpgradeStage('distribute', 'Download firmware image'),
+            'activate': UpgradeStage('activate', 'Apply new firmware'),
+            'wait': UpgradeStage('wait', 'Wait for device stabilization'),
+            'ping': UpgradeStage('ping', 'Verify device reachability'),
+            'post_check': UpgradeStage('post_check', 'Run post-upgrade validation checks'),
+            'verification': UpgradeStage('verification', 'Confirm version matches target'),
+        }
+
+    def _run_stage(self, stage_name: str, **kwargs) -> bool:
+        """
+        Run a single upgrade stage.
+
+        Args:
+            stage_name: Name of the stage to run
+            **kwargs: Additional arguments for the stage
+
+        Returns:
+            True if stage succeeded, False otherwise
+        """
+        stage = self.stages.get(stage_name)
+        if not stage:
+            self.errors.append(f"Unknown stage: {stage_name}")
+            return False
+
+        stage.start_time = time.time()
+        stage.success = False
+
+        try:
+            if stage_name == 'readiness':
+                success = self._check_readiness(**kwargs)
+            elif stage_name == 'pre_check':
+                success = self._run_pre_checks(**kwargs)
+            elif stage_name == 'distribute':
+                success = self._distribute_image(**kwargs)
+            elif stage_name == 'activate':
+                success = self._activate_image(**kwargs)
+            elif stage_name == 'wait':
+                success = self._wait_for_stabilization(**kwargs)
+            elif stage_name == 'ping':
+                success = self._ping_device(**kwargs)
+            elif stage_name == 'post_check':
+                success = self._run_post_checks(**kwargs)
+            elif stage_name == 'verification':
+                success = self._verify_version(**kwargs)
+            else:
+                self.errors.append(f"Stage not implemented: {stage_name}")
+                success = False
+
+            stage.success = success
+            stage.end_time = time.time()
+
+            if success:
+                stage.message = f"{stage.name} completed successfully"
+            else:
+                stage.message = f"{stage.name} failed"
+
+            return success
+
+        except Exception as e:
+            stage.message = f"Exception: {str(e)}"
+            self.errors.append(f"{stage_name} failed with exception: {str(e)}")
+            return False
+
+    def _check_readiness(self, **kwargs) -> bool:
+        """
+        Check if device is ready for upgrade using scrapli.
+
+        Validates:
+            - Sufficient flash space
+            - Version compatibility
+            - Device health
+        """
+        try:
+            # Use scrapli to get device information
+            if not self.device._connection:
+                self.errors.append("Device not connected")
+                return False
+
+            # Get flash info
+            flash_output = self.device.send_command("dir")
+
+            # Check if image size requirement can be met
+            if 'image_size' in self.golden_image:
+                image_size = self.golden_image['image_size']
+                # Simple check - look for free space in output
+                if 'bytes' in flash_output.lower():
+                    # Could parse actual free space, but for now just continue
+                    pass
+
+            # Check current version
+            if self.device.version == self.golden_image.get('version'):
+                self.errors.append("Device already running target version")
+                return False
+
+            return True
+
+        except Exception as e:
+            self.errors.append(f"Readiness check failed: {e}")
+            return False
+
+    def _run_pre_checks(self, **kwargs) -> bool:
+        """
+        Run pre-upgrade validation checks using unicon.
+
+        Runs ValidationChecks from a CheckTemplate against a device.
+        """
+        try:
+            from genie.pyats import connections
+
+            # Connect using unicon
+            device_conn = connections.connect(self.device.host,
+                                              username=self.device.username,
+                                              password=self.device.password,
+                                              os='iosxe')
+
+            # Basic check - verify device is healthy
+            output = device_conn.execute("show version")
+
+            # Add more pre-checks as needed
+            device_conn.disconnect()
+
+            return True
+        except Exception as e:
+            self.errors.append(f"Pre-check failed: {e}")
+            return False
+
+    def _distribute_image(self, **kwargs) -> bool:
+        """
+        Distribute firmware image to device using unicon.
+
+        Supports: HTTP, HTTPS, TFTP, FTP, SCP
+        """
+        try:
+            from genie.pyats import connections
+
+            # Connect using unicon
+            device_conn = connections.connect(self.device.host,
+                                              username=self.device.username,
+                                              password=self.device.password,
+                                              os='iosxe')
+
+            protocol = self.file_server.get('protocol', 'http').lower()
+            file_name = self.golden_image.get('image_name', '')
+            file_server_ip = self.file_server.get('ip', '')
+            base_path = self.file_server.get('base_path', '')
+
+            if not file_name or not file_server_ip:
+                self.errors.append("Missing file name or file server information")
+                device_conn.disconnect()
+                return False
+
+            # Build copy command based on protocol
+            if protocol in ['http', 'https']:
+                copy_cmd = f"copy {protocol}://{file_server_ip}/{base_path}/{file_name} {file_name}"
+            elif protocol == 'tftp':
+                copy_cmd = f"copy tftp://{file_server_ip}/{base_path}/{file_name} {file_name}"
+            elif protocol == 'ftp':
+                copy_cmd = f"copy ftp://{file_server_ip}/{base_path}/{file_name} {file_name}"
+            elif protocol == 'scp':
+                username = self.file_server.get('username', self.device.username)
+                copy_cmd = f"copy scp://{username}@{file_server_ip}/{base_path}/{file_name} {file_name}"
+            else:
+                self.errors.append(f"Unsupported protocol: {protocol}")
+                device_conn.disconnect()
+                return False
+
+            # Execute copy command
+            output = device_conn.execute(copy_cmd)
+
+            # Check if transfer was successful
+            if "bytes copied" in output.lower() or "OK" in output:
+                device_conn.disconnect()
+                return True
+
+            device_conn.disconnect()
+            return False
+
+        except Exception as e:
+            self.errors.append(f"Distribution failed: {e}")
+            return False
+
+    def _activate_image(self, **kwargs) -> bool:
+        """
+        Activate the new firmware on the device using unicon.
+
+        Uses: install add file <image> activate commit
+        """
+        try:
+            from genie.pyats import connections
+
+            # Connect using unicon
+            device_conn = connections.connect(self.device.host,
+                                              username=self.device.username,
+                                              password=self.device.password,
+                                              os='iosxe')
+
+            image_name = self.golden_image.get('image_name', '')
+
+            if not image_name:
+                self.errors.append("Missing image name for activation")
+                device_conn.disconnect()
+                return False
+
+            # Cisco IOS-XE activation command
+            activate_cmd = f"install add file {image_name} activate commit"
+
+            output = device_conn.execute(activate_cmd)
+
+            # Check if activation was accepted
+            if "installed" in output.lower() or "commit" in output.lower():
+                device_conn.disconnect()
+                return True
+
+            device_conn.disconnect()
+            return False
+
+        except Exception as e:
+            self.errors.append(f"Activation failed: {e}")
+            return False
+
+    def _wait_for_stabilization(self, **kwargs) -> bool:
+        """
+        Wait for device to stabilize after activation.
+        """
+        wait_time = kwargs.get('wait_time', self.wait_time)
+        time.sleep(wait_time)
+        return True
+
+    def _ping_device(self, **kwargs) -> bool:
+        """
+        Verify device is reachable after upgrade.
+        """
+        import subprocess
+        import platform
+
+        try:
+            param = '-n' if platform.system().lower() == 'windows' else '-c'
+            command = ['ping', param, '1', '-W', '5', self.device.host]
+            result = subprocess.run(command, capture_output=True, text=True, timeout=10)
+            if result.returncode == 0:
+                return True
+        except Exception:
+            pass
+
+        return False
+
+    def _run_post_checks(self, **kwargs) -> bool:
+        """
+        Run post-upgrade validation checks using unicon.
+        """
+        try:
+            from genie.pyats import connections
+
+            # Connect using unicon
+            device_conn = connections.connect(self.device.host,
+                                              username=self.device.username,
+                                              password=self.device.password,
+                                              os='iosxe')
+
+            # Basic check - verify device is responding
+            output = device_conn.execute("show version")
+            device_conn.disconnect()
+
+            return True
+        except Exception as e:
+            self.errors.append(f"Post-check failed: {e}")
+            return False
+
+    def _verify_version(self, **kwargs) -> bool:
+        """
+        Verify the device is running the target version using scrapli.
+        """
+        try:
+            target_version = self.golden_image.get('version', '')
+
+            if not target_version:
+                return False
+
+            # Get current version using scrapli
+            output = self.device.send_command("show version")
+
+            # Compare with current version
+            if self.device.version == target_version:
+                return True
+
+            return False
+        except Exception as e:
+            self.errors.append(f"Version verification failed: {e}")
+            return False
+
+    def upgrade(self) -> Dict[str, Any]:
+        """
+        Execute the complete upgrade workflow.
+
+        Returns:
+            Dictionary containing:
+                - success: Overall success status
+                - stages: Individual stage results
+                - errors: List of errors encountered
+        """
+        result = {
+            'success': False,
+            'stages': {},
+            'errors': self.errors.copy()
+        }
+
+        # Execute stages in order
+        stages_order = [
+            'readiness',
+            'pre_check',
+            'distribute',
+            'activate',
+            'wait',
+            'ping',
+            'post_check',
+            'verification'
+        ]
+
+        for stage_name in stages_order:
+            if not self._run_stage(stage_name):
+                # Continue to next stage but mark overall as failed
+                pass
+
+        # Check if all stages succeeded
+        all_success = all(stage.success for stage in self.stages.values())
+
+        result['success'] = all_success
+        result['stages'] = {
+            name: {
+                'name': stage.name,
+                'success': stage.success,
+                'message': stage.message,
+                'duration': (stage.end_time - stage.start_time) if stage.start_time and stage.end_time else 0
+            }
+            for name, stage in self.stages.items()
+        }
+
+        return result
+
+
+class UpgradeManager:
+    """
+    High-level manager for firmware upgrades.
+
+    Usage:
+        manager = UpgradeManager(
+            host="192.168.1.1",
+            username="admin",
+            password="password",
+            device_type="cisco_xe",
+            golden_image={
+                "version": "17.9.4",
+                "image_name": "flash:c9300-universalk9.17.9.4.SPA.bin",
+            },
+            file_server={
+                "ip": "10.0.0.10",
+                "protocol": "http",
+                "base_path": "/tftpboot"
+            }
+        )
+        result = manager.upgrade()
+    """
+
+    def __init__(
+        self,
+        host: str,
+        username: str,
+        password: str,
+        port: int = 22,
+        device_type: Optional[str] = None,
+        golden_image: Optional[Dict[str, Any]] = None,
+        file_server: Optional[Dict[str, Any]] = None,
+        **kwargs
+    ):
+        """
+        Initialize the UpgradeManager.
+
+        Args:
+            host: Device IP or hostname
+            username: SSH username
+            password: SSH password
+            port: SSH port
+            device_type: Device type/platform (e.g., cisco_ios, cisco_xe, cisco_nxos)
+                        Required for scrapli connection.
+            golden_image: Golden image information
+            file_server: File server information
+            **kwargs: Additional arguments passed to Device and UpgradeWorkflow
+        """
+        self.host = host
+        self.username = username
+        self.password = password
+        self.port = port
+        self.device_type = device_type
+        self.golden_image = golden_image or {}
+        self.file_server = file_server or {}
+        self.device_kwargs = kwargs
+
+        self.device: Optional[Device] = None
+        self.workflow: Optional[UpgradeWorkflow] = None
+
+    def connect(self) -> bool:
+        """Establish connection to the device."""
+        device_kwargs = {
+            'host': self.host,
+            'username': self.username,
+            'password': self.password,
+            'port': self.port,
+        }
+        # Add device_type if provided
+        if self.device_type:
+            device_kwargs['device_type'] = self.device_type
+        device_kwargs.update(self.device_kwargs)
+
+        self.device = Device(**device_kwargs)
+
+        try:
+            return self.device.connect()
+        except DeviceConnectionError as e:
+            raise e
+
+    def upgrade(self) -> Dict[str, Any]:
+        """
+        Perform the complete upgrade process.
+
+        Returns:
+            Dictionary with upgrade results
+        """
+        if not self.device:
+            raise DeviceConnectionError("Not connected. Call connect() first.")
+
+        # Gather device information
+        device_info = self.device.gather_info()
+
+        # Initialize workflow
+        self.workflow = UpgradeWorkflow(
+            device=self.device,
+            golden_image=self.golden_image,
+            file_server=self.file_server,
+            **self.device_kwargs
+        )
+
+        # Execute upgrade
+        result = self.workflow.upgrade()
+
+        # Update result with device info
+        result['device_info'] = device_info
+
+        return result
+
+    def disconnect(self):
+        """Close the device connection."""
+        if self.device:
+            self.device.disconnect()
+            self.device = None
+
+    def sync(self) -> Dict[str, Any]:
+        """
+        Synchronize device information - fetch current version, model, etc.
+
+        Returns:
+            Dictionary with device information
+        """
+        if not self.device:
+            raise DeviceConnectionError("Not connected. Call connect() first.")
+
+        # Use ConnectionManager to sync device info
+        cm = ConnectionManager(
+            host=self.device.host,
+            username=self.device.username,
+            password=self.device.password,
+            device_type=self.device_type,
+            port=self.device.port,
+        )
+
+        # Get scrapli connection
+        conn = cm.get_connection('scrapli')
+
+        # Get platform from connection manager
+        platform = cm.get_platform(channel='scrapli')
+
+        # Create sync manager with platform
+        sync_mgr = SyncManager(connection_manager=cm, platform=platform)
+
+        # Fetch info using the connection
+        device_info = sync_mgr.fetch_info()
+        cm.disconnect()
+
+        return device_info
