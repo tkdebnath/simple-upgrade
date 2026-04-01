@@ -302,16 +302,20 @@ class MockUpgradeWorkflow:
         image_name = self.golden_image.get('image_name', 'unknown')
         protocol = self.file_server.get('protocol', 'http')
         server_ip = self.file_server.get('ip', '')
+        base_path = self.file_server.get('base_path', '')
 
-        # In dry-run mode, we'd show what would be executed
-        copy_cmd = f"copy {protocol}://{server_ip}/images/{image_name} flash:/{image_name}"
+        # Build the actual copy command that would be executed
+        copy_cmd = f"copy {protocol}://{server_ip}/{base_path}/{image_name} flash:/{image_name}"
+
+        # Record the actual command that would be executed
         self.commands_executed.append({
             'stage': 'distribute',
             'command': copy_cmd,
-            'mode': 'upgrade'
+            'mode': 'upgrade',
+            'actual_command': copy_cmd  # The actual command that would execute
         })
 
-        return f"Image {image_name} would be distributed from {server_ip}"
+        return f"DISTRIBUTION: copy {protocol}://{server_ip}/{base_path}/{image_name} flash:/{image_name}"
 
     def _mock_activate(self) -> str:
         """Mock image activation."""
@@ -496,38 +500,43 @@ class DryRunUpgradeWorkflow:
         return "Pre-checks passed"
 
     def _dryrun_distribute(self) -> str:
-        """Dry-run image distribution."""
+        """Dry-run image distribution - shows actual command that would execute."""
         image_name = self.golden_image.get('image_name', 'unknown')
         protocol = self.file_server.get('protocol', 'http')
         server_ip = self.file_server.get('ip', '')
+        base_path = self.file_server.get('base_path', '')
 
-        # Would execute copy command
-        copy_cmd = f"copy {protocol}://{server_ip}/images/{image_name} flash:/{image_name}"
-        self.mocked_upgrade_commands.append(copy_cmd)
+        # Build the actual copy command
+        copy_cmd = f"copy {protocol}://{server_ip}/{base_path}/{image_name} flash:/{image_name}"
+
+        # Record in show_commands since it's the actual command to execute
+        self.show_commands.append(copy_cmd)
         self.commands_executed.append({
             'stage': 'distribute',
             'command': copy_cmd,
-            'mode': 'mocked',
-            'actual_command': 'copy would be executed but mocked for dry-run'
+            'mode': 'show',
+            'actual_command': copy_cmd  # The actual command that would execute
         })
 
-        return f"Image {image_name} would be distributed from {server_ip}"
+        return f"DISTRIBUTION COMMAND: {copy_cmd}"
 
     def _dryrun_activate(self) -> str:
-        """Dry-run image activation."""
+        """Dry-run image activation - shows actual command that would execute."""
         image_name = self.golden_image.get('image_name', 'unknown')
 
-        # Cisco IOS-XE activation
+        # Cisco IOS-XE activation command
         activate_cmd = f"install add file {image_name} activate commit"
-        self.mocked_upgrade_commands.append(activate_cmd)
+
+        # Record in show_commands since it's the actual command to execute
+        self.show_commands.append(activate_cmd)
         self.commands_executed.append({
             'stage': 'activate',
             'command': activate_cmd,
-            'mode': 'mocked',
-            'actual_command': 'install add would be executed but mocked for dry-run'
+            'mode': 'show',
+            'actual_command': activate_cmd  # The actual command that would execute
         })
 
-        return f"Image {image_name} would be activated"
+        return f"ACTIVATION COMMAND: {activate_cmd}"
 
     def _dryrun_wait(self, wait_time: int) -> str:
         """Dry-run wait period."""
