@@ -1,0 +1,148 @@
+"""
+Cisco IOS-XE/NX-OS activation module - Applies new firmware.
+
+This module provides Cisco-specific firmware activation using unicon.
+Supports: install add/activate/commit workflow (IOS-XE) and install commands (NX-OS).
+"""
+
+from typing import Dict, Any
+
+
+def activate_image(connection, platform: str, golden_image: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Activate new firmware on Cisco device.
+
+    Args:
+        connection: Active connection object (unicon)
+        platform: Platform name (cisco_iosxe, cisco_nxos)
+        golden_image: Dictionary with golden image information
+
+    Returns:
+        Dictionary with:
+            - success: Boolean indicating success
+            - message: Status message
+            - command: Command executed
+    """
+    result = {
+        'success': False,
+        'message': '',
+        'command': '',
+    }
+
+    image_name = golden_image.get('image_name', '')
+
+    if not image_name:
+        result['message'] = 'Missing image name for activation'
+        return result
+
+    # Build activation command based on platform
+    if 'nx-os' in platform.lower():
+        activate_cmd = _build_nxos_activate_cmd(image_name)
+    else:
+        activate_cmd = _build_iosxe_activate_cmd(image_name)
+
+    result['command'] = activate_cmd
+
+    try:
+        # Execute activation command
+        output = connection.execute(activate_cmd)
+
+        # Check if activation was successful
+        if _check_activation_success(output, platform):
+            result['success'] = True
+            result['message'] = 'Image activated successfully'
+        else:
+            result['message'] = f'Activation failed: {output[:200]}'
+
+    except Exception as e:
+        result['message'] = f'Exception during activation: {str(e)}'
+
+    return result
+
+
+def _build_iosxe_activate_cmd(image_name: str) -> str:
+    """
+    Build activation command for IOS-XE.
+
+    Uses: install add file <image> activate commit
+    This is the standard workflow for Catalyst 9K and 3650.
+
+    Args:
+        image_name: Full path to image file
+
+    Returns:
+        Activation command string
+    """
+    return f"install add file {image_name} activate commit"
+
+
+def _build_nxos_activate_cmd(image_name: str) -> str:
+    """
+    Build activation command for NX-OS.
+
+    Uses: install image <image>
+    NX-OS uses a different workflow than IOS-XE.
+
+    Args:
+        image_name: Full path to image file
+
+    Returns:
+        Activation command string
+    """
+    # Check if image is on bootflash or disk0
+    if not image_name.startswith('bootflash:') and not image_name.startswith('disk0:'):
+        image_name = f"bootflash:{image_name}"
+
+    return f"install image {image_name}"
+
+
+def _check_activation_success(output: str, platform: str) -> bool:
+    """
+    Check if the activation command was successful.
+
+    Args:
+        output: Output from the activation command
+        platform: Platform name
+
+    Returns:
+        True if successful, False otherwise
+    """
+    if isinstance(output, list):
+        output = '\n'.join(output)
+
+    # Generic success indicators
+    success_indicators = [
+        'installed',
+        'installed successfully',
+        'commit succeeded',
+        'commit complete',
+        'active image',
+        'activation succeeded',
+    ]
+
+    for indicator in success_indicators:
+        if indicator.lower() in output.lower():
+            return True
+
+    # Platform-specific indicators
+    if 'nx-os' in platform.lower():
+        nxos_success = [
+            'installation completed',
+            'image activated',
+            'active image',
+        ]
+        for indicator in nxos_success:
+            if indicator.lower() in output.lower():
+                return True
+
+    # IOS-XE specific
+    iosxe_success = [
+        'commit complete',
+        'activate complete',
+        'success',
+    ]
+    for indicator in iosxe_success:
+        if indicator.lower() in output.lower():
+            return True
+
+    return False

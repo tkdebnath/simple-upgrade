@@ -38,6 +38,8 @@ from .device_profiles import (
     execute_command,
     DEVICE_PROFILES_PATH
 )
+from .manufacturers import cisco, juniper, arista
+from .manufacturers import get_manufacturer_module, execute_stage
 
 __version__ = "0.1.0"
 __author__ = "Tarani Debnath"
