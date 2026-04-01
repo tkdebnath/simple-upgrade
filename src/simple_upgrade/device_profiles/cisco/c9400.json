@@ -1,0 +1,53 @@
+{
+  "manufacturer": "Cisco",
+  "model": "C9400",
+  "series": "Catalyst 9400",
+  "platform": "cisco_iosxe",
+  "device_type": "cisco_xe",
+  "description": "Cisco Catalyst 9400 Series Switches",
+  "commands": {
+    "show_version": "show version",
+    "show_inventory": "show inventory",
+    "show_running_config": "show running-config",
+    "show_interfaces_status": "show interfaces status",
+    "show_mac_address_table": "show mac address-table",
+    "show_ip_route": "show ip route",
+    "show_arp": "show arp",
+    "show_vlan": "show vlan",
+    "show_stp_summary": "show spanning-tree summary",
+    "show_vdc": "show vdc",
+    "show_vdc_status": "show vdc status",
+    "show_environment": "show environment",
+    "show_licenses": "show licenses",
+    "show_install_active": "show install active",
+    "dir": "dir"
+  },
+  "upgrade_commands": {
+    "check_free_space": "dir | include bytes total",
+    "copy_image": "copy {protocol}://{server}/{path}/{image} flash:/{image}",
+    "verify_image": "verify /md5 flash:/{image}",
+    "install_add": "install add file flash:/{image} activate commit",
+    "install_commit": "install commit",
+    "verify_install": "show install active"
+  },
+  "verification_commands": {
+    "check_version": "show version | include Version",
+    "check_uptime": "show version | include uptime",
+    "check_model": "show version | include Processor",
+    "check_serial": "show inventory | include PID"
+  },
+  "config_commands": {
+    "enter_config": "configure terminal",
+    "exit_config": "end",
+    "save_config": "write memory",
+    "reload_device": "reload"
+  },
+  "upgrade_notes": [
+    "C9400 uses install add/activate/commit workflow",
+    "Check supervisor redundancy before upgrade",
+    "Ensure sufficient flash space on both supervisors",
+    "Verify checksum after copy"
+  ],
+  "flash_size": "8GB",
+  "default_image_location": "flash:/"
+}

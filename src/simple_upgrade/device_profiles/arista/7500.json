@@ -1,0 +1,47 @@
+{
+  "manufacturer": "Arista",
+  "model": "7500",
+  "series": "7500",
+  "platform": "arista_eos",
+  "device_type": "arista_eos",
+  "description": "Arista 7500 Series Switches",
+  "commands": {
+    "show_version": "show version",
+    "show_inventory": "show inventory",
+    "show_running_config": "show running-config",
+    "show_interfaces_status": "show interfaces status",
+    "show_mac_address_table": "show mac address-table",
+    "show_ip_route": "show ip route",
+    "show_arp": "show arp",
+    "show_vlan": "show vlans",
+    "show_environment": "show environment",
+    "show_licenses": "show licenses"
+  },
+  "upgrade_commands": {
+    "check_free_space": "show disk usage",
+    "copy_image": "copy {protocol}://{server}/{path}/{image} flash:/{image}",
+    "verify_image": "check image {image}",
+    "install_image": "install image flash:/{image}",
+    "activate_image": "activate image flash:/{image}"
+  },
+  "verification_commands": {
+    "check_version": "show version | include Aboot",
+    "check_uptime": "show uptime",
+    "check_model": "show version | include Model",
+    "check_serial": "show inventory"
+  },
+  "config_commands": {
+    "enter_config": "configure terminal",
+    "exit_config": "end",
+    "save_config": "write memory",
+    "reload_device": "reload"
+  },
+  "upgrade_notes": [
+    "7500 uses install/activate workflow",
+    "Check boot variable before upgrade",
+    "Ensure sufficient flash space",
+    "Use 'show disk usage' to check space"
+  ],
+  "flash_size": "32GB",
+  "default_image_location": "flash:/"
+}

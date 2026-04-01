@@ -1,0 +1,47 @@
+{
+  "manufacturer": "Juniper",
+  "model": "mx",
+  "series": "MX Series",
+  "platform": "juniper_junos",
+  "device_type": "juniper_junos",
+  "description": "Juniper MX Series Universal Routing Platforms",
+  "commands": {
+    "show_version": "show version",
+    "show_inventory": "show chassis hardware",
+    "show_running_config": "show configuration",
+    "show_interfaces_status": "show interfaces status",
+    "show_mac_address_table": "show ethernet-switching table",
+    "show_ip_route": "show route",
+    "show_arp": "show arp",
+    "show_vlan": "show vlans",
+    "show_chassis_fabric": "show chassis fabric",
+    "show_environment": "show environment",
+    "show_licenses": "show system licenses"
+  },
+  "upgrade_commands": {
+    "check_free_space": "show system storage",
+    "copy_image": "request system software add {protocol}://{server}/{path}/{image}",
+    "verify_image": "request system software verify {image}",
+    "request_upgrade": "request system software add {image} reboot"
+  },
+  "verification_commands": {
+    "check_version": "show version | match JUNOS",
+    "check_uptime": "show system uptime",
+    "check_model": "show chassis hardware",
+    "check_serial": "show chassis hardware"
+  },
+  "config_commands": {
+    "enter_config": "configure",
+    "exit_config": "exit",
+    "save_config": "commit and-quit",
+    "reload_device": "request system reboot"
+  },
+  "upgrade_notes": [
+    "MX uses request system software add workflow",
+    "Check route engine redundancy before upgrade",
+    "Ensure sufficient storage space",
+    "Use 'show system storage' to check space"
+  ],
+  "flash_size": "64GB",
+  "default_image_location": "/var/tmp/"
+}

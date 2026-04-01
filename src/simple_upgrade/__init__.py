@@ -28,6 +28,13 @@ from .workflow import UpgradeWorkflow, UpgradeManager
 from .connection_manager import ConnectionManager, ConnectionError
 from .sync import SyncManager, get_device_commands, sync_device
 from .constants import PLATFORM_MAPPINGS, get_platform_for_library, get_all_libraries, get_supported_platforms
+from .device_profiles import (
+    get_device_profile,
+    get_command_template,
+    list_manufacturers,
+    list_models,
+    DEVICE_PROFILES_PATH
+)
 
 __version__ = "0.1.0"
 __author__ = "Tarani Debnath"
