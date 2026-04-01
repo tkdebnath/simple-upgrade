@@ -33,6 +33,9 @@ from .device_profiles import (
     get_command_template,
     list_manufacturers,
     list_models,
+    find_device_profile,
+    execute_upgrade_command,
+    execute_command,
     DEVICE_PROFILES_PATH
 )
 

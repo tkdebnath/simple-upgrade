@@ -22,6 +22,14 @@ Usage:
         profiles = find_device_profile(manufacturer='cisco', mode='switch', platform='cisco_iosxe', series='catalyst_9300')
         if len(profiles) == 1:
             profile = profiles[0]
+
+    # Using command templates with variables
+    from simple_upgrade import execute_upgrade_command
+
+    copy_cmd = execute_upgrade_command(
+        profile, 'copy_image', protocol='tftp', server='192.168.1.100',
+        path='images', image='device.bin'
+    )
 """
 
 import os
@@ -249,3 +257,47 @@ def get_verification_command(manufacturer: str, model: str, command_type: str) -
     if profile and 'verification_commands' in profile:
         return profile['verification_commands'].get(command_type)
     return None
+
+
+def execute_upgrade_command(profile: Dict[str, Any], command_type: str, **kwargs) -> str:
+    """
+    Execute an upgrade command by filling in template variables.
+
+    Args:
+        profile: Device profile dictionary
+        command_type: Type of upgrade command (e.g., 'copy_image', 'install_add', 'verify_image')
+        **kwargs: Variables to fill into the template (e.g., protocol='tftp', server='192.168.1.1')
+
+    Returns:
+        Completed command string with variables substituted
+
+    Raises:
+        ValueError: If command_type is not found in the profile's upgrade_commands
+    """
+    if command_type not in profile.get('upgrade_commands', {}):
+        raise ValueError(f"Unknown command type '{command_type}'. Available: {list(profile.get('upgrade_commands', {}).keys())}")
+
+    template = profile['upgrade_commands'][command_type]
+    return template.format(**kwargs)
+
+
+def execute_command(profile: Dict[str, Any], command_type: str, **kwargs) -> str:
+    """
+    Execute a standard command by filling in template variables.
+
+    Args:
+        profile: Device profile dictionary
+        command_type: Type of command (e.g., 'show_version', 'show_inventory')
+        **kwargs: Variables to fill into the template
+
+    Returns:
+        Completed command string with variables substituted
+
+    Raises:
+        ValueError: If command_type is not found in the profile's commands
+    """
+    if command_type not in profile.get('commands', {}):
+        raise ValueError(f"Unknown command type '{command_type}'. Available: {list(profile.get('commands', {}).keys())}")
+
+    template = profile['commands'][command_type]
+    return template.format(**kwargs)
