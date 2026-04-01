@@ -1,6 +1,7 @@
 {
   "manufacturer": "Arista",
   "model": "7050",
+  "mode": "switch",
   "series": "7050",
   "platform": "arista_eos",
   "device_type": "arista_eos",

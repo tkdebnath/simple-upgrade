@@ -1,6 +1,7 @@
 {
   "manufacturer": "Juniper",
   "model": "qfx",
+  "mode": "switch",
   "series": "QFX Series",
   "platform": "juniper_junos",
   "device_type": "juniper_junos",

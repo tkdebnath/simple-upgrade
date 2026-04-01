@@ -1,6 +1,7 @@
 {
   "manufacturer": "Cisco",
   "model": "n9k",
+  "mode": "switch",
   "series": "Nexus 9000",
   "platform": "cisco_nxos",
   "device_type": "cisco_nxos",

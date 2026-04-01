@@ -1,6 +1,7 @@
 {
   "manufacturer": "Cisco",
   "model": "c9500",
+  "mode": "switch",
   "series": "Catalyst 9500",
   "platform": "cisco_iosxe",
   "device_type": "cisco_xe",
