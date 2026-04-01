@@ -29,6 +29,7 @@ from .connection_manager import ConnectionManager, ConnectionError
 from .sync import SyncManager, get_device_commands, sync_device
 from .checks import Checks, run_pre_checks, run_post_checks
 from .genie_tests import CiscoGenieTests, run_genie_tests, pre_upgrade_genie_checks
+from .report import ReportGenerator, generate_upgrade_report
 from .constants import PLATFORM_MAPPINGS, get_platform_for_library, get_all_libraries, get_supported_platforms
 from .device_profiles import (
     get_device_profile,
