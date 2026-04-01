@@ -64,7 +64,8 @@ class ConnectionManager:
         enable_password: Optional[str] = None,
         secret: Optional[str] = None,
         auth_strict_key: bool = False,
-        transport: str = "ssh"
+        transport: str = "ssh",
+        connection_mode: str = "normal"  # normal, mock, dry_run
     ):
         """
         Initialize the ConnectionManager.
@@ -96,6 +97,7 @@ class ConnectionManager:
         self.secret = secret
         self.auth_strict_key = auth_strict_key
         self.transport = transport
+        self.connection_mode = connection_mode
 
         # Connection objects
         self._scrapli_conn = None

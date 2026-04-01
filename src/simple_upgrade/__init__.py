@@ -44,5 +44,16 @@ from .device_profiles import (
 from .manufacturers import cisco, juniper, arista
 from .manufacturers import get_manufacturer_module, execute_stage
 
+# Mock and Dry-Run functionality
+from .mocks import (
+    MockConnection,
+    DryRunConnection,
+    MockSyncManager,
+    MockUpgradeWorkflow,
+    DryRunUpgradeWorkflow,
+    _get_mock_output,
+    _get_mock_upgrade_output
+)
+
 __version__ = "0.1.0"
 __author__ = "Tarani Debnath"

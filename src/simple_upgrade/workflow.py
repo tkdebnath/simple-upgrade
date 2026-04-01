@@ -4,6 +4,10 @@ Upgrade workflow management - handles the upgrade stages from readiness to verif
 Library usage:
 - scrapli: sync, readiness, verification
 - unicon: pre-checks, post-checks, distribution, activation
+
+Mock and Dry-Run modes:
+- mock: Simulate entire pipeline without any real connections
+- dry_run: Connect to device but only execute show commands; mock upgrade commands
 """
 
 import time
@@ -12,6 +16,7 @@ from typing import Optional, Dict, Any, List
 from .device import Device, DeviceConnectionError
 from .sync import SyncManager
 from .connection_manager import ConnectionManager
+from .mocks import MockUpgradeWorkflow, DryRunUpgradeWorkflow
 
 
 class UpgradeStage:
@@ -38,6 +43,11 @@ class UpgradeWorkflow:
         6. Ping - Verify device is reachable
         7. Post-check - Run post-upgrade validations (using unicon)
         8. Verification - Confirm version match (using scrapli)
+
+    Connection Modes:
+        - normal: Actual SSH connection with full upgrade execution
+        - mock: Simulate entire pipeline without any real connections
+        - dry_run: Connect to device but only execute show commands; mock upgrade commands
     """
 
     def __init__(
@@ -47,7 +57,8 @@ class UpgradeWorkflow:
         file_server: Dict[str, Any],
         auto_update: bool = True,
         wait_time: int = 300,
-        max_retries: int = 3
+        max_retries: int = 3,
+        connection_mode: str = "normal"  # normal, mock, dry_run
     ):
         """
         Initialize the upgrade workflow.
@@ -59,6 +70,7 @@ class UpgradeWorkflow:
             auto_update: Whether to automatically apply changes
             wait_time: Wait time after activation in seconds
             max_retries: Maximum retries for each stage
+            connection_mode: Connection mode - 'normal', 'mock', or 'dry_run'
         """
         self.device = device
         self.golden_image = golden_image
@@ -66,6 +78,7 @@ class UpgradeWorkflow:
         self.auto_update = auto_update
         self.wait_time = wait_time
         self.max_retries = max_retries
+        self.connection_mode = connection_mode
 
         self.stages: Dict[str, UpgradeStage] = {}
         self.errors: List[str] = []
@@ -140,6 +153,76 @@ class UpgradeWorkflow:
             stage.message = f"Exception: {str(e)}"
             self.errors.append(f"{stage_name} failed with exception: {str(e)}")
             return False
+
+    def upgrade(self) -> Dict[str, Any]:
+        """
+        Execute the complete upgrade workflow.
+
+        Returns:
+            Dictionary containing:
+                - success: Overall success status
+                - stages: Individual stage results
+                - errors: List of errors encountered
+        """
+        # Handle mock mode
+        if self.connection_mode == 'mock':
+            mock_workflow = MockUpgradeWorkflow(
+                device=self.device,
+                golden_image=self.golden_image,
+                file_server=self.file_server,
+                connection_mode='mock'
+            )
+            return mock_workflow.upgrade()
+
+        # Handle dry-run mode
+        if self.connection_mode == 'dry_run':
+            dryrun_workflow = DryRunUpgradeWorkflow(
+                device=self.device,
+                golden_image=self.golden_image,
+                file_server=self.file_server,
+                connection_mode='dry_run'
+            )
+            return dryrun_workflow.upgrade()
+
+        # Normal mode - run actual stages
+        result = {
+            'success': False,
+            'stages': {},
+            'errors': self.errors.copy()
+        }
+
+        # Execute stages in order
+        stages_order = [
+            'readiness',
+            'pre_check',
+            'distribute',
+            'activate',
+            'wait',
+            'ping',
+            'post_check',
+            'verification'
+        ]
+
+        for stage_name in stages_order:
+            if not self._run_stage(stage_name):
+                # Continue to next stage but mark overall as failed
+                pass
+
+        # Check if all stages succeeded
+        all_success = all(stage.success for stage in self.stages.values())
+
+        result['success'] = all_success
+        result['stages'] = {
+            name: {
+                'name': stage.name,
+                'success': stage.success,
+                'message': stage.message,
+                'duration': (stage.end_time - stage.start_time) if stage.start_time and stage.end_time else 0
+            }
+            for name, stage in self.stages.items()
+        }
+
+        return result
 
     def _check_readiness(self, **kwargs) -> bool:
         """
@@ -368,55 +451,6 @@ class UpgradeWorkflow:
             self.errors.append(f"Version verification failed: {e}")
             return False
 
-    def upgrade(self) -> Dict[str, Any]:
-        """
-        Execute the complete upgrade workflow.
-
-        Returns:
-            Dictionary containing:
-                - success: Overall success status
-                - stages: Individual stage results
-                - errors: List of errors encountered
-        """
-        result = {
-            'success': False,
-            'stages': {},
-            'errors': self.errors.copy()
-        }
-
-        # Execute stages in order
-        stages_order = [
-            'readiness',
-            'pre_check',
-            'distribute',
-            'activate',
-            'wait',
-            'ping',
-            'post_check',
-            'verification'
-        ]
-
-        for stage_name in stages_order:
-            if not self._run_stage(stage_name):
-                # Continue to next stage but mark overall as failed
-                pass
-
-        # Check if all stages succeeded
-        all_success = all(stage.success for stage in self.stages.values())
-
-        result['success'] = all_success
-        result['stages'] = {
-            name: {
-                'name': stage.name,
-                'success': stage.success,
-                'message': stage.message,
-                'duration': (stage.end_time - stage.start_time) if stage.start_time and stage.end_time else 0
-            }
-            for name, stage in self.stages.items()
-        }
-
-        return result
-
 
 class UpgradeManager:
     """
@@ -439,6 +473,11 @@ class UpgradeManager:
             }
         )
         result = manager.upgrade()
+
+    Connection Modes:
+        - normal: Actual SSH connection with full upgrade execution
+        - mock: Simulate entire pipeline without any real connections
+        - dry_run: Connect to device but only execute show commands; mock upgrade commands
     """
 
     def __init__(
@@ -450,6 +489,7 @@ class UpgradeManager:
         device_type: Optional[str] = None,
         golden_image: Optional[Dict[str, Any]] = None,
         file_server: Optional[Dict[str, Any]] = None,
+        connection_mode: str = "normal",  # normal, mock, dry_run
         **kwargs
     ):
         """
@@ -464,6 +504,7 @@ class UpgradeManager:
                         Required for scrapli connection.
             golden_image: Golden image information
             file_server: File server information
+            connection_mode: Connection mode - 'normal', 'mock', or 'dry_run'
             **kwargs: Additional arguments passed to Device and UpgradeWorkflow
         """
         self.host = host
@@ -473,6 +514,7 @@ class UpgradeManager:
         self.device_type = device_type
         self.golden_image = golden_image or {}
         self.file_server = file_server or {}
+        self.connection_mode = connection_mode
         self.device_kwargs = kwargs
 
         self.device: Optional[Device] = None
@@ -489,6 +531,7 @@ class UpgradeManager:
         # Add device_type if provided
         if self.device_type:
             device_kwargs['device_type'] = self.device_type
+        device_kwargs['connection_mode'] = self.connection_mode
         device_kwargs.update(self.device_kwargs)
 
         self.device = Device(**device_kwargs)
@@ -516,6 +559,7 @@ class UpgradeManager:
             device=self.device,
             golden_image=self.golden_image,
             file_server=self.file_server,
+            connection_mode=self.connection_mode,
             **self.device_kwargs
         )
 

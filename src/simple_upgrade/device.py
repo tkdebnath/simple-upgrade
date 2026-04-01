@@ -28,7 +28,8 @@ class Device:
         timeout: int = 30,
         enable_mode: bool = False,
         enable_password: Optional[str] = None,
-        device_type: Optional[str] = None
+        device_type: Optional[str] = None,
+        connection_mode: str = "normal"  # normal, mock, dry_run
     ):
         """
         Initialize device connection parameters.
@@ -52,6 +53,7 @@ class Device:
         self.enable_mode = enable_mode
         self.enable_password = enable_password
         self.device_type = device_type
+        self.connection_mode = connection_mode
 
         # Device information - populated after connection
         self.manufacturer: str = ""
@@ -72,6 +74,53 @@ class Device:
         Returns:
             True if connection successful, False otherwise
         """
+        # Handle mock mode
+        if self.connection_mode == 'mock':
+            from .mocks import MockConnection
+            self._connection = MockConnection(
+                host=self.host,
+                username=self.username,
+                password=self.password,
+                device_type=self.device_type,
+                port=self.port,
+                platform=self.device_type
+            )
+            self._connection.open()
+            self._connected = True
+            return True
+
+        # Handle dry-run mode
+        if self.connection_mode == 'dry_run':
+            from .mocks import DryRunConnection
+            # Create real connection for show commands
+            from scrapli import Scrapli
+            from scrapli.exceptions import ScrapliException
+
+            if not self.device_type:
+                raise DeviceConnectionError(
+                    "device_type is required. Please provide the device type "
+                    "(e.g., 'cisco_ios', 'cisco_xe', 'cisco_nxos')."
+                )
+
+            conn_args = {
+                "host": self.host,
+                "port": self.port,
+                "auth_username": self.username,
+                "auth_password": self.password,
+                "auth_strict_key": False,
+                "timeout_socket": self.timeout,
+                "platform": self.device_type,
+            }
+
+            real_conn = Scrapli(**conn_args)
+            real_conn.open()
+
+            self._connection = DryRunConnection(real_conn, self.device_type)
+            self._connection.open()
+            self._connected = True
+            return True
+
+        # Normal mode - actual SSH connection
         try:
             from scrapli import Scrapli
             from scrapli.exceptions import ScrapliException
