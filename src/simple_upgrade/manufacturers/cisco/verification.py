@@ -87,6 +87,3 @@ def _parse_version(output: str, platform: str) -> str:
             return match.group(1)
 
     return 'Unknown'
-
-
-import re
