@@ -141,22 +141,22 @@ class SyncManager:
 
     def fetch_info(self) -> Dict[str, Any]:
         """
-        Fetch all device information.
+        Fetch all device information using manufacturer-specific sync.
 
         Returns:
             Complete device information dictionary
         """
+        from .manufacturers import execute_stage
+
         commands = get_device_commands(self.platform)
 
-        # Fetch version output
-        version_output = self._send_command(commands['version'])
-        self.info['version'] = version_output
+        # Get connection from connection manager
+        conn = self.cm._scrapli_conn
 
-        # Fetch inventory output
-        inventory_output = self._send_command(commands['inventory'])
-        self.info['inventory'] = inventory_output
+        # Use manufacturer-specific sync (channel is auto-detected from connection)
+        device_info = execute_stage('cisco', 'sync', conn, self.platform, commands)
 
-        return self.info
+        return device_info
 
 
 def sync_device(

@@ -43,7 +43,7 @@ from .device_profiles import (
     validate_device_profiles,
     DEVICE_PROFILES_PATH
 )
-from .manufacturers import cisco, juniper, arista
+from .manufacturers import cisco
 from .manufacturers import get_manufacturer_module, execute_stage
 
 # Mock and Dry-Run functionality

@@ -120,6 +120,22 @@ def get_platform_for_library(platform: str, library: str) -> str:
     return PLATFORM_MAPPINGS['default'].get(library, 'cisco_ios')
 
 
+DEVICE_COMMANDS = {
+    'cisco_ios': {
+        'version': 'show version',
+        'inventory': 'show inventory',
+    },
+    'cisco_iosxe': {
+        'version': 'show version',
+        'inventory': 'show inventory',
+    },
+    'cisco_nxos': {
+        'version': 'show version',
+        'inventory': 'show inventory',
+    },
+}
+
+
 def get_all_libraries() -> list:
     """Return list of supported libraries."""
     return ['scrapli', 'netmiko', 'unicon']

@@ -6,8 +6,6 @@ Each manufacturer has submodules for sync, readiness, distribution, and activati
 
 Available manufacturers:
     - cisco
-    - juniper
-    - arista
 
 Usage:
     from simple_upgrade.manufacturers.cisco import sync, readiness, distribution
@@ -20,7 +18,7 @@ Usage:
 import importlib
 from typing import Optional, Dict, Any
 
-from . import cisco, juniper, arista
+from . import cisco
 
 
 def get_manufacturer_module(manufacturer: str, stage: str) -> Optional[Any]:
@@ -57,18 +55,22 @@ def execute_stage(manufacturer: str, stage: str, *args, **kwargs) -> Any:
     module = get_manufacturer_module(manufacturer, stage)
     if module:
         # Try to find a function that matches the stage name or a generic execute function
-        if hasattr(module, stage):
-            func = getattr(module, stage)
-            # Get channel from kwargs if provided
-            channel = kwargs.pop('channel', None)
-            # If channel not provided and first arg is connection, try to get from connection
-            if channel is None and len(args) > 0:
-                conn = args[0]
-                channel_module = getattr(conn, '__module__', '')
-                channel = 'scrapli' if 'scrapli' in channel_module else None
-            # Call function with channel if it's a sync function
+        func_name = stage if stage != 'sync' else 'fetch_info'
+        if hasattr(module, func_name):
+            func = getattr(module, func_name)
+            # For sync function, pass channel as second positional argument (after connection)
             if stage == 'sync':
-                return func(*args, channel=channel, **kwargs)
+                # Get channel from kwargs if provided
+                channel = kwargs.pop('channel', None)
+                # If channel not provided, try to get from connection module
+                if channel is None and len(args) > 0:
+                    conn = args[0]
+                    channel_module = getattr(conn, '__module__', '')
+                    channel = 'scrapli' if 'scrapli' in channel_module else None
+                # Insert channel as second argument (after connection)
+                args = list(args)
+                args.insert(1, channel)
+                return func(*args, **kwargs)
             return func(*args, **kwargs)
         elif hasattr(module, 'execute'):
             return module.execute(*args, **kwargs)

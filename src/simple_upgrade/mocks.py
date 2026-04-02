@@ -51,7 +51,7 @@ from typing import Optional, Dict, Any, List
 from .device import Device, DeviceConnectionError
 from .connection_manager import ConnectionManager, ConnectionError
 from .sync import SyncManager
-from .manufacturers import cisco, juniper, arista
+from .manufacturers import cisco
 from . import manufacturers
 
 
