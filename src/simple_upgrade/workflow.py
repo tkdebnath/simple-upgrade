@@ -381,6 +381,7 @@ class UpgradeWorkflow:
             file_name = self.golden_image.get('image_name', '')
             file_server_ip = self.file_server.get('ip', '')
             base_path = self.file_server.get('base_path', '')
+            source_interface = self.file_server.get('source_interface') or self.golden_image.get('source_interface')
 
             if not file_name or not file_server_ip:
                 self.errors.append("Missing file name or file server information")
@@ -399,6 +400,10 @@ class UpgradeWorkflow:
             else:
                 self.errors.append(f"Unsupported protocol: {protocol}")
                 return False
+
+            # Add source interface if specified
+            if source_interface:
+                copy_cmd = f"{copy_cmd} source interface {source_interface}"
 
             # Execute copy command (with longer timeout for file transfer)
             output = device_conn.execute(copy_cmd, timeout=300)
