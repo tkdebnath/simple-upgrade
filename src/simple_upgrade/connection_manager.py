@@ -1,9 +1,8 @@
 """
 Connection Manager - Centralized connection object management.
 
-Provides a unified interface to create connection objects for scrapli, netmiko, and unicon.
+Provides a unified interface to create connection objects for scrapli.
 """
-import re
 
 from typing import Optional, Dict, Any
 
@@ -23,7 +22,7 @@ def _normalize_platform_name(platform: str) -> str:
 
 class ConnectionManager:
     """
-    Manages network device connections using multiple libraries (scrapli, netmiko, unicon).
+    Manages network device connections using scrapli.
 
     Usage:
         from simple_upgrade import ConnectionManager
@@ -40,14 +39,6 @@ class ConnectionManager:
         sc = conn.get_connection(channel='scrapli')
         output = sc.send_command("show version")
 
-        # Get netmiko connection
-        nm = conn.get_connection(channel='netmiko')
-        output = nm.send_command("show version")
-
-        # Get unicon connection
-        uc = conn.get_connection(channel='unicon')
-        output = uc.execute("show version")
-
         conn.disconnect()
     """
 
@@ -62,7 +53,6 @@ class ConnectionManager:
         connection_timeout: int = 30,
         enable_mode: bool = False,
         enable_password: Optional[str] = None,
-        secret: Optional[str] = None,
         auth_strict_key: bool = False,
         transport: str = "ssh",
         connection_mode: str = "normal",  # normal, mock, dry_run
@@ -77,17 +67,15 @@ class ConnectionManager:
             username: SSH username
             password: SSH password
             device_type: Device type/platform (e.g., cisco_ios, cisco_xe, cisco_nxos)
-                        Required for scrapli, optional for netmiko/unicon
             port: SSH port (default: 22)
             timeout: Command timeout in seconds (default: 30)
             connection_timeout: Connection timeout in seconds (default: 30)
             enable_mode: Whether to enter enable mode (default: False)
             enable_password: Enable password if required
-            secret: Secret/enable password for privileged mode (optional)
             auth_strict_key: Strict SSH key checking (default: False)
             transport: Transport type (default: "ssh")
+            connection_mode: Connection mode - 'normal', 'mock', or 'dry_run'
             scrapli_args: Additional arguments to pass to scrapli Scrapli() constructor
-                         (e.g., {'auth_passphrase': 'password', 'transport_options': {...}})
             **kwargs: Additional keyword arguments
         """
         self.host = host
@@ -99,7 +87,6 @@ class ConnectionManager:
         self.connection_timeout = connection_timeout
         self.enable_mode = enable_mode
         self.enable_password = enable_password
-        self.secret = secret
         self.auth_strict_key = auth_strict_key
         self.transport = transport
         self.connection_mode = connection_mode
@@ -108,10 +95,7 @@ class ConnectionManager:
 
         # Connection objects
         self._scrapli_conn = None
-        self._netmiko_conn = None
-        self._unicon_conn = None
         self._active_channel = None
-        self._platforms = {}  # Store platform for each channel
         self.channel = None  # Channel name for external use
         self.channel_platform = None  # Platform for the active channel
 
@@ -120,7 +104,7 @@ class ConnectionManager:
         Get the platform name for a specific library using the centralized mapping.
 
         Args:
-            library: Library name (scrapli, netmiko, unicon)
+            library: Library name (scrapli)
 
         Returns:
             Platform name specific to the library
@@ -163,7 +147,7 @@ class ConnectionManager:
         Get a connection object for the specified library.
 
         Args:
-            channel: The library to use - 'scrapli', 'netmiko', or 'unicon'
+            channel: The library to use - 'scrapli'
 
         Returns:
             Connection object for the specified library
@@ -173,55 +157,30 @@ class ConnectionManager:
         """
         channel = channel.lower()
 
-        if channel not in ['scrapli', 'netmiko', 'unicon']:
+        if channel != 'scrapli':
             raise ConnectionError(
                 f"Invalid channel: {channel}. "
-                f"Supported channels: scrapli, netmiko, unicon"
+                f"Supported channel: scrapli"
             )
 
         # Return existing connection if already established
         if channel == 'scrapli' and self._scrapli_conn:
             return self._scrapli_conn
-        elif channel == 'netmiko' and self._netmiko_conn:
-            return self._netmiko_conn
-        elif channel == 'unicon' and self._unicon_conn:
-            return self._unicon_conn
 
-        # Create new connection based on channel
+        # Create new connection
         try:
-            if channel == 'scrapli':
-                self._scrapli_conn = self._get_scrapli_connection()
-                self._active_channel = 'scrapli'
-                self.channel = 'scrapli'
-                self.channel_platform = self._get_library_platform('scrapli')
-                # Store platform for sync step
-                self._platforms['scrapli'] = self.channel_platform
-                return self._scrapli_conn
-
-            elif channel == 'netmiko':
-                self._netmiko_conn = self._get_netmiko_connection()
-                self._active_channel = 'netmiko'
-                self.channel = 'netmiko'
-                self.channel_platform = self._get_library_platform('netmiko')
-                # Store platform for sync step
-                self._platforms['netmiko'] = self.channel_platform
-                return self._netmiko_conn
-
-            elif channel == 'unicon':
-                self._unicon_conn = self._get_unicon_connection()
-                self._active_channel = 'unicon'
-                self.channel = 'unicon'
-                self.channel_platform = self._get_library_platform('unicon')
-                # Store platform for sync step
-                self._platforms['unicon'] = self.channel_platform
-                return self._unicon_conn
+            self._scrapli_conn = self._get_scrapli_connection()
+            self._active_channel = 'scrapli'
+            self.channel = 'scrapli'
+            self.channel_platform = self._get_library_platform('scrapli')
+            return self._scrapli_conn
 
         except Exception as e:
             raise ConnectionError(f"Failed to connect to {self.host}: {e}")
 
     def get_platform(self, channel: Optional[str] = None) -> str:
         """
-        Get the platform name for a specific channel or the active channel.
+        Get the platform name for the active channel.
 
         Args:
             channel: The channel to get platform for. If None, uses active channel.
@@ -234,15 +193,12 @@ class ConnectionManager:
         """
         if channel:
             channel = channel.lower()
-            if channel in self._platforms:
-                return self._platforms[channel]
-            # Get and store the platform
-            self._platforms[channel] = self._get_library_platform(channel)
-            return self._platforms[channel]
+            if channel in ['scrapli'] and self.channel_platform:
+                return self.channel_platform
 
         # Use active channel
-        if self._active_channel and self._active_channel in self._platforms:
-            return self._platforms[self._active_channel]
+        if self._active_channel and self.channel_platform:
+            return self.channel_platform
 
         raise ConnectionError(
             "No active channel. Call get_connection() first to establish a connection "
@@ -253,11 +209,8 @@ class ConnectionManager:
         """
         Get a connection object and its corresponding platform.
 
-        This is a convenience method that combines getting the connection and platform
-        in a single call, which is useful for the sync step.
-
         Args:
-            channel: The library to use - 'scrapli', 'netmiko', or 'unicon'
+            channel: The library to use - 'scrapli'
 
         Returns:
             Dictionary with 'connection' and 'platform' keys
@@ -319,91 +272,6 @@ class ConnectionManager:
         except Exception as e:
             raise ConnectionError(f"Scrapli connection failed: {e}")
 
-    def _get_netmiko_connection(self):
-        """
-        Create and return a netmiko connection object.
-        """
-        try:
-            from netmiko import ConnectHandler
-            from netmiko.exceptions import NetmikoTimeoutException, NetmikoAuthenticationException
-
-            # Get platform from centralized mapping
-            netmiko_platform = self._get_library_platform('netmiko')
-
-            conn_args = {
-                "host": self.host,
-                "port": self.port,
-                "username": self.username,
-                "password": self.password,
-                "timeout": self.timeout,
-                "conn_timeout": self.connection_timeout,
-                "global_delay_factor": 1,
-                "device_type": netmiko_platform,
-            }
-
-            # enable password
-            if self.enable_password:
-                conn_args["secret"] = self.enable_password
-
-            conn = ConnectHandler(**conn_args)
-
-            return conn
-
-        except (NetmikoTimeoutException, NetmikoAuthenticationException) as e:
-            raise ConnectionError(f"Netmiko connection failed: {e}")
-        except Exception as e:
-            raise ConnectionError(f"Netmiko connection failed: {e}")
-
-    def _get_unicon_connection(self):
-        """
-        Create and return a unicon (pyats) connection object.
-        """
-        try:
-            from genie.testbed import load
-
-            # Get os from centralized mapping
-            unicon_os = self._get_library_platform('unicon')
-
-            # Building creds
-            credentials = {
-                "default": {
-                    "username": self.username,
-                    "password": self.password,
-                }
-            }
-
-            if self.enable_password:
-                credentials["enable"]= {
-                    "password": self.enable_password,
-                }
-
-            # Build connection arguments
-            conn_args = {
-                "credentials": credentials,
-                "os": unicon_os,
-                'connections': {
-                    'defaults': {
-                        'class': 'unicon.Unicon',
-                    },
-                    'cli': {
-                        'protocol': 'ssh',
-                        'ip': self.host,
-                        'ssh_options': "-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o KexAlgorithms=+diffie-hellman-group-exchange-sha1,diffie-hellman-group14-sha1,diffie-hellman-group1-sha1 -o HostKeyAlgorithms=+ssh-rsa -o Ciphers=+aes256-cbc",
-                        'learn_hostname': True
-                    }
-                }
-            }
-
-            tb_conf = {'devices': {self.host: conn_args}}
-            testbed = load(tb_conf)
-            conn = testbed.devices[self.host]
-            
-
-            return conn
-
-        except Exception as e:
-            raise ConnectionError(f"Unicon connection failed: {e}")
-
     def disconnect(self, channel: Optional[str] = None):
         """
         Disconnect from the device.
@@ -421,20 +289,6 @@ class ConnectionManager:
                     pass
                 self._scrapli_conn = None
 
-            elif channel == 'netmiko' and self._netmiko_conn:
-                try:
-                    self._netmiko_conn.disconnect()
-                except Exception:
-                    pass
-                self._netmiko_conn = None
-
-            elif channel == 'unicon' and self._unicon_conn:
-                try:
-                    self._unicon_conn.disconnect()
-                except Exception:
-                    pass
-                self._unicon_conn = None
-
         else:
             # Disconnect all channels
             if self._scrapli_conn:
@@ -443,20 +297,6 @@ class ConnectionManager:
                 except Exception:
                     pass
                 self._scrapli_conn = None
-
-            if self._netmiko_conn:
-                try:
-                    self._netmiko_conn.disconnect()
-                except Exception:
-                    pass
-                self._netmiko_conn = None
-
-            if self._unicon_conn:
-                try:
-                    self._unicon_conn.disconnect()
-                except Exception:
-                    pass
-                self._unicon_conn = None
 
         self._active_channel = None
         self.channel = None
@@ -476,10 +316,6 @@ class ConnectionManager:
             channel = channel.lower()
             if channel == 'scrapli':
                 return self._scrapli_conn is not None
-            elif channel == 'netmiko':
-                return self._netmiko_conn is not None
-            elif channel == 'unicon':
-                return self._unicon_conn is not None
             return False
 
         return self._active_channel is not None
@@ -497,10 +333,10 @@ class ConnectionManager:
         Get the channel name for a connection object.
 
         Args:
-            conn: Connection object (scrapli, netmiko, or unicon)
+            conn: Connection object (scrapli)
 
         Returns:
-            Channel name ('scrapli', 'netmiko', or 'unicon') or None if not found
+            Channel name ('scrapli') or None if not found
         """
         if conn is None:
             return None
@@ -509,23 +345,11 @@ class ConnectionManager:
         if conn is self._scrapli_conn:
             return 'scrapli'
 
-        # Check if it's the netmiko connection
-        if conn is self._netmiko_conn:
-            return 'netmiko'
-
-        # Check if it's the unicon connection
-        if conn is self._unicon_conn:
-            return 'unicon'
-
         # Check type for externally created connections
         try:
             module = getattr(conn, '__module__', '')
             if 'scrapli' in module:
                 return 'scrapli'
-            if 'netmiko' in module:
-                return 'netmiko'
-            if 'genie.pyats' in module or 'pyats' in module:
-                return 'unicon'
         except Exception:
             pass
 
