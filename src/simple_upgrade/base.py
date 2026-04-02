@@ -1,20 +1,64 @@
 """
-Base Task and Execution Context classes.
+Core abstractions for the simple-upgrade framework.
+Consolidated models and base classes for minimal clear code.
 """
 
 import time
 from abc import ABC, abstractmethod
-from typing import Any, Dict, Optional, List, TypeVar, Generic
-
-from .models import GoldenImage, FileServer, DeviceInfo, StageResult
+from typing import Any, Dict, Optional, List
+from pydantic import BaseModel, Field, field_validator
 from .connection_manager import ConnectionManager
 
 
-class ExecutionContext:
-    """
-    Mutable state shared across the orchestrated upgrade stages.
-    """
+# ── Models ───────────────────────────────────────────────────────────
 
+class GoldenImage(BaseModel):
+    version: str
+    image_name: str
+    image_size: Optional[int] = None
+    md5: Optional[str] = None
+    sha256: Optional[str] = None
+
+    @field_validator('image_name')
+    @classmethod
+    def validate_image_name(cls, v: str) -> str:
+        if not v.strip(): raise ValueError("image_name cannot be empty")
+        return v
+
+
+class FileServer(BaseModel):
+    ip: str
+    protocol: str = "http"
+    base_path: str = ""
+    port: Optional[int] = None
+    username: Optional[str] = None
+    password: Optional[str] = None
+    source_interface: Optional[str] = None
+
+
+class DeviceInfo(BaseModel):
+    manufacturer: str = "Unknown"
+    model: Optional[str] = None
+    version: Optional[str] = None
+    hostname: Optional[str] = None
+    serial: Optional[str] = None
+    platform: Optional[str] = None
+    extra: Dict[str, Any] = Field(default_factory=dict)
+
+
+class StageResult(BaseModel):
+    success: bool
+    message: str = ""
+    data: Dict[str, Any] = Field(default_factory=dict)
+    errors: List[str] = Field(default_factory=list)
+    duration: float = 0.0
+    command: Optional[str] = None
+    skipped: bool = False
+
+
+# ── Context & Tasks ──────────────────────────────────────────────────
+
+class ExecutionContext:
     def __init__(
         self,
         connection_manager: ConnectionManager,
@@ -30,8 +74,6 @@ class ExecutionContext:
         self.connection_mode = connection_mode
         self.device_type = device_type
         self.manufacturer = manufacturer.lower()
-
-        # Mutable results
         self.device_info = DeviceInfo()
         self.stage_results: Dict[str, StageResult] = {}
         self.errors: List[str] = []
@@ -41,64 +83,46 @@ class ExecutionContext:
 
 
 class BaseTask(ABC):
-    """
-    Abstract base class for all upgrade tasks.
-    """
-
     def __init__(self, context: ExecutionContext):
         self.ctx = context
         self.start_time: float = 0.0
-        self.end_time: float = 0.0
 
     @property
     @abstractmethod
-    def name(self) -> str:
-        """Name of the stage."""
-        pass
+    def name(self) -> str: pass
+
+    @property
+    def conn(self):
+        """Shortcut for Scrapli connection."""
+        return self.ctx.cm.get_connection('scrapli')
+
+    @property
+    def unicon(self):
+        """Shortcut for Unicon connection."""
+        return self.ctx.cm.get_connection('unicon')
 
     def execute(self, **kwargs) -> StageResult:
-        """
-        Public methods to run the task with built-in timing and lifecycle hooks.
-        """
         self.start_time = time.time()
-        
-        # Pre-execute hook
         try:
             self.pre_execute(**kwargs)
-        except Exception as e:
-            return self._fail(f"Pre-execution failed: {e}")
-
-        # Core logic
-        try:
             result = self.run(**kwargs)
         except Exception as e:
             result = self._fail(f"Execution failed: {e}")
 
-        self.end_time = time.time()
-        result.duration = self.end_time - self.start_time
-        
-        # Capture result in context
+        result.duration = time.time() - self.start_time
         self.ctx.stage_results[self.name] = result
         if not result.success:
             self.ctx.failed_stage = self.name
             self.ctx.errors.extend(result.errors)
-
         return result
 
-    def pre_execute(self, **kwargs):
-        """Optional hook to run before the main task."""
-        pass
+    def pre_execute(self, **kwargs): pass
 
     @abstractmethod
-    def run(self, **kwargs) -> StageResult:
-        """Core task logic to be implemented by manufacturers."""
-        pass
+    def run(self, **kwargs) -> StageResult: pass
 
-    def _success(self, message: str = "", data: Optional[Dict[str, Any]] = None, **kwargs) -> StageResult:
-        """Helper to create a successful StageResult."""
-        return StageResult(success=True, message=message, data=data or {}, **kwargs)
+    def _success(self, msg: str = "", data: Optional[Dict] = None, **kwargs) -> StageResult:
+        return StageResult(success=True, message=msg, data=data or {}, **kwargs)
 
-    def _fail(self, message: str, errors: Optional[List[str]] = None, **kwargs) -> StageResult:
-        """Helper to create a failed StageResult."""
-        err_list = errors or [message]
-        return StageResult(success=False, message=message, errors=err_list, **kwargs)
+    def _fail(self, msg: str, errors: Optional[List] = None, **kwargs) -> StageResult:
+        return StageResult(success=False, message=msg, errors=errors or [msg], **kwargs)

@@ -1,34 +1,26 @@
 """
-Cisco IOS-XE distribution task.
+Cisco distribution task - minimalist version.
 """
 
 from ...registry import register_stage
-from ...base import BaseTask
-from ...models import StageResult
+from ...base import BaseTask, StageResult
 
 
 @register_stage('distribute', 'cisco')
 class CiscoDistributeTask(BaseTask):
     @property
-    def name(self) -> str:
-        return "distribute"
+    def name(self) -> str: return "distribute"
 
     def run(self, **kwargs) -> StageResult:
-        """Distribute the golden image to the target device."""
+        """Transfer the golden image to the device."""
         img = self.ctx.golden_image.image_name
         srv = self.ctx.file_server.ip
-        proto = self.ctx.file_server.protocol
         
-        cmd = f"copy {proto}://{srv}/{img} flash:{img}"
+        # Unified copy command logic
+        cmd = f"copy {self.ctx.file_server.protocol}://{srv}/{img} flash:{img}"
         
-        if self.ctx.connection_mode in ('mock', 'dry_run'):
+        if self.ctx.connection_mode != "normal":
             return self._success(f"[MOCK] Would execute: {cmd}")
-            
-        try:
-            conn = self.ctx.cm.get_connection('scrapli')
-            # In real execution, we would handle interactive prompts for copy
-            # or use a more robust transfer method.
-            # res = conn.send_command(cmd)
-            return self._success(f"Successfully initiated distribution of {img}")
-        except Exception as e:
-            return self._fail(f"Distribution failed: {e}")
+
+        res = self.conn.send_command(cmd)
+        return self._success(f"Successfully initiated distribution of {img}")

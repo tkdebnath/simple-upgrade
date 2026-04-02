@@ -40,6 +40,7 @@ class ConnectionManager:
 
         self._scrapli = None
         self._unicon = None
+        self._mock_library_map = {}
 
     def get_connection(self, library: str = "scrapli") -> Any:
         """Get or create a connection for the specified library."""
@@ -110,12 +111,16 @@ class ConnectionManager:
     def _get_mock_connection(self, library: str) -> Any:
         """Return a mock connection object."""
         from .mocks import MockConnection
-        return MockConnection(
-            host=self.host,
-            username=self.username,
-            password=self.password,
-            platform=self._get_mapped_platform(library)
-        )
+        if library not in self._mock_library_map:
+            conn = MockConnection(
+                host=self.host,
+                username=self.username,
+                password=self.password,
+                platform=self._get_mapped_platform(library)
+            )
+            conn.open()
+            self._mock_library_map[library] = conn
+        return self._mock_library_map[library]
 
     def disconnect(self):
         """Close all active connections."""

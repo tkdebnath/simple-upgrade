@@ -8,7 +8,7 @@ import platform as py_platform
 from typing import Dict, Any, Optional, List
 
 from .connection_manager import ConnectionManager
-from .models import GoldenImage, FileServer, DeviceInfo, StageResult
+from .base import GoldenImage, FileServer, DeviceInfo, StageResult, ExecutionContext
 from .base import ExecutionContext
 from .registry import global_registry
 from . import manufacturers
@@ -109,6 +109,28 @@ class UpgradePackage:
 
     @property
     def success(self) -> bool: return self.ctx.failed_stage is None and len(self.ctx.stage_results) > 0
+    
+    @property
+    def connection_mode(self) -> str: return self.ctx.connection_mode
+
+    @connection_mode.setter
+    def connection_mode(self, value: str):
+        self.ctx.connection_mode = value
+        self._connection_manager.connection_mode = value
+
+    @property
+    def golden_image(self) -> GoldenImage: return self.ctx.golden_image
+
+    @golden_image.setter
+    def golden_image(self, value: GoldenImage):
+        self.ctx.golden_image = value
+
+    @property
+    def file_server(self) -> FileServer: return self.ctx.file_server
+
+    @file_server.setter
+    def file_server(self, value: FileServer):
+        self.ctx.file_server = value
     
     @property
     def stage_results(self) -> Dict[str, Any]: return self.execute() # For legacy callers
