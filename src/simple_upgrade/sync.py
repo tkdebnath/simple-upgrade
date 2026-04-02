@@ -65,6 +65,44 @@ class SyncManager:
         self.platform = platform.lower().replace('-', '_')
         self.info: Dict[str, Any] = {}
 
+        # Validate channel and platform
+        self._validate_channel()
+
+    def _validate_channel(self) -> None:
+        """
+        Validate the connection channel and platform.
+
+        Raises:
+            ValueError: If channel is invalid or platform doesn't match
+        """
+        # Check if connection manager has an active channel
+        active_channel = self.cm.get_active_channel()
+        if not active_channel:
+            raise ValueError(
+                "No active channel found. Call get_connection() on the connection manager "
+                "before initializing SyncManager."
+            )
+
+        # Validate channel is scrapli
+        if active_channel != 'scrapli':
+            raise ValueError(
+                f"Invalid channel: {active_channel}. "
+                f"Supported channel: scrapli"
+            )
+
+        # Validate platform matches
+        channel_platform = self.cm.get_active_channel_platform()
+        if channel_platform:
+            # Normalize platforms for comparison
+            norm_sync_platform = self.platform.replace('-', '_')
+            norm_channel_platform = channel_platform.lower().replace('-', '_')
+
+            if norm_sync_platform != norm_channel_platform:
+                raise ValueError(
+                    f"Platform mismatch: SyncManager platform='{self.platform}', "
+                    f"channel platform='{channel_platform}'"
+                )
+
     def _send_command(self, command: str) -> str:
         """
         Send command to scrapli connection.
