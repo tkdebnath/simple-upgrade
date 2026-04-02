@@ -462,6 +462,7 @@ class UpgradePackage:
         1. Get hardware model from device
         2. Match model to device profile
         3. Use manufacturer's activation module for the full workflow
+        4. After activation, device will reboot and become unreachable temporarily
 
         Updates:
             - stage_results: activate result
@@ -619,6 +620,103 @@ class UpgradePackage:
 
         return self
 
+    def post_activation_wait(self) -> 'UpgradePackage':
+        """
+        Wait after activation with continuous ping monitoring.
+
+        Steps:
+        1. Wait 10 minutes for device to stabilize
+        2. Continuously ping device (every 30 seconds)
+        3. Once ping succeeds, wait 30 seconds
+        4. Run post_check and verification
+
+        Updates:
+            - stage_results: post_activation_wait result
+
+        Returns:
+            Self for method chaining
+        """
+        import time
+        import subprocess
+        import platform
+
+        try:
+            # Step 1: Wait 10 minutes for device to stabilize
+            self.stage_results['post_activation_wait'] = {
+                'success': True,
+                'message': 'Waiting 10 minutes for device to stabilize...'
+            }
+            time.sleep(600)  # 10 minutes
+
+            # Step 2: Continuously ping device (every 30 seconds)
+            self.stage_results['post_activation_wait']['message'] = 'Starting continuous ping monitoring...'
+
+            param = '-n' if platform.system().lower() == 'windows' else '-c'
+            command = ['ping', param, '1', '-W', '5', self.host]
+
+            max_attempts = 60  # Maximum 30 minutes of pinging
+            attempt = 0
+
+            while attempt < max_attempts:
+                try:
+                    result = subprocess.run(command, capture_output=True, text=True, timeout=10)
+
+                    if result.returncode == 0:
+                        # Device is reachable
+                        self.stage_results['post_activation_wait']['message'] = 'Device is reachable!'
+                        self.stage_results['post_activation_wait']['attempts'] = attempt + 1
+                        break
+
+                    attempt += 1
+                    time.sleep(30)  # Wait 30 seconds before next ping
+
+                except Exception as e:
+                    attempt += 1
+                    time.sleep(30)
+                    continue
+
+            if attempt >= max_attempts:
+                self.stage_results['post_activation_wait']['success'] = False
+                self.stage_results['post_activation_wait']['message'] = 'Device unreachable after maximum ping attempts'
+                self.errors.append('post_activation_wait failed: device unreachable')
+                self.failed_stage = 'post_activation_wait'
+                return self
+
+            # Step 3: Wait 30 seconds before trying to login
+            self.stage_results['post_activation_wait']['message'] = 'Waiting 30 seconds before login...'
+            time.sleep(30)
+
+            # Step 4: Run post_check
+            self.post_check()
+
+            # Check if post_check failed
+            if not self.stage_results.get('post_check', {}).get('success', True):
+                self.errors.append('post_check failed after upgrade')
+                self.failed_stage = 'post_check'
+                return self
+
+            # Step 5: Run verification
+            self.verification()
+
+            # Check if verification failed
+            if not self.stage_results.get('verification', {}).get('success', True):
+                self.errors.append('verification failed after upgrade')
+                self.failed_stage = 'verification'
+                return self
+
+            self.stage_results['post_activation_wait']['success'] = True
+            self.stage_results['post_activation_wait']['message'] = 'Post-activation wait completed successfully'
+
+        except Exception as e:
+            self.stage_results['post_activation_wait'] = {
+                'success': False,
+                'message': str(e)
+            }
+            self.errors.append(f"post_activation_wait failed: {e}")
+            self.failed_stage = 'post_activation_wait'
+
+        return self
+
     def post_check(self) -> 'UpgradePackage':
         """
         Run post-upgrade validation checks.
@@ -767,26 +865,29 @@ class UpgradePackage:
         3. pre_check
         4. distribute
         5. activate
-        6. wait
-        7. ping
-        8. post_check
-        9. verification
+        6. post_activation_wait (10 min wait + continuous ping + post_check + verification)
+
+        The post_activation_wait stage handles:
+        - Wait 10 minutes for device to stabilize
+        - Continuously ping device (every 30 seconds)
+        - Wait 30 seconds after first successful ping
+        - Run post_check validation
+        - Run version verification
 
         Stops if any stage fails.
 
         Returns:
             Dictionary with upgrade results
         """
+        # For upgrade execution, use simplified stages with post_activation_wait
+        # The post_activation_wait stage handles: wait(10min), continuous ping, post_check, verification
         stages_order = [
             'sync',
             'readiness',
             'pre_check',
             'distribute',
             'activate',
-            'wait',
-            'ping',
-            'post_check',
-            'verification'
+            'post_activation_wait'
         ]
 
         for stage_name in stages_order:
@@ -799,6 +900,19 @@ class UpgradePackage:
                 if not result.get('success', False):
                     # Stop on failure
                     break
+
+        # For backwards compatibility, generate full stage results
+        # by including wait and ping in the results if not present
+        if 'wait' not in self.stage_results:
+            self.stage_results['wait'] = {
+                'success': True,
+                'message': 'Skipped - merged into post_activation_wait'
+            }
+        if 'ping' not in self.stage_results:
+            self.stage_results['ping'] = {
+                'success': True,
+                'message': 'Skipped - merged into post_activation_wait'
+            }
 
         # Calculate overall success
         self.success = self.failed_stage is None
