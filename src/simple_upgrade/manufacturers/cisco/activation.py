@@ -14,6 +14,10 @@ Handles the complete activation workflow at manufacturer level:
 from typing import Dict, Any, Optional
 
 
+# Supported platforms only - only cisco_iosxe is allowed
+SUPPORTED_PLATFORMS = ['cisco_iosxe']
+
+
 def activate_image(
     connection,
     platform: str,
@@ -46,6 +50,27 @@ def activate_image(
     if not image_name:
         result['message'] = 'Missing image name for activation'
         return result
+
+    # Check if platform is supported (only cisco_iosxe allowed)
+    if platform not in SUPPORTED_PLATFORMS:
+        result['message'] = f"Platform '{platform}' is not supported. Only cisco_iosxe is allowed."
+        return result
+
+    # If device_profile is provided, check if model is supported
+    # Only c9300 series models are allowed
+    if device_profile:
+        model = device_profile.get('model', '').lower()
+        if not model.startswith('c9300'):
+            result['message'] = f"Model '{model}' is not supported. Only c9300 series models are allowed."
+            return result
+
+        # Check models list as well
+        models_list = device_profile.get('models', [])
+        if isinstance(models_list, list):
+            for m in models_list:
+                if not m.lower().startswith('c9300'):
+                    result['message'] = f"Model '{m}' is not supported. Only c9300 series models are allowed."
+                    return result
 
     # NX-OS disabled - only IOS-XE activation
     activate_cmd = _build_iosxe_activate_cmd(image_name)
