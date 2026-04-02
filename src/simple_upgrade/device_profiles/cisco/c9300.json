@@ -30,7 +30,6 @@
     "copy_image": "copy {protocol}://{server}/{path}/{image} flash:/{image}",
     "verify_image": "verify /md5 flash:/{image}",
     "install_add": "install add file flash:/{image} activate commit",
-    "install_commit": "install commit",
     "verify_install": "show install active"
   },
   "verification_commands": {
