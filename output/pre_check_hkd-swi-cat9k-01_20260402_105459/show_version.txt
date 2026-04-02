@@ -18,8 +18,8 @@ software.
 
 ROM: IOS-XE ROMMON
 BOOTLDR:
-hkd-swi-cat9k-01 uptime is 3 hours, 47 minutes
-Uptime for this control processor is 3 hours, 49 minutes
+hkd-swi-cat9k-01 uptime is 4 hours, 2 minutes
+Uptime for this control processor is 4 hours, 4 minutes
 System returned to ROM by unknown reload cause - reason ptr 0xF, PC 0x0,address 0x0
 System image file is "bootflash:packages.conf"
 Last reload reason: Unknown reason

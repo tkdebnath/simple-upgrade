@@ -235,6 +235,7 @@ def _run_readiness_checks(connection, platform_lower, golden_image, commands, re
 
     result['messages'].append(f"Current version: {current_version}, Target: {golden_image.get('version')}")
 
+
     # Check 7: Check for any active sessions or locks
     try:
         config_output = connection.send_command("show configuration lock")

@@ -405,6 +405,14 @@ class UpgradeWorkflow:
 
             # Check if transfer was successful
             if "bytes copied" in output.lower() or "OK" in output:
+                # Verify md5 checksum if provided
+                target_md5 = self.golden_image.get('md5')
+                if target_md5:
+                    md5_verify_cmd = f"verify /md5 flash:/{file_name}"
+                    md5_output = device_conn.execute(md5_verify_cmd, timeout=120)
+                    if target_md5.upper() not in str(md5_output).upper():
+                        self.errors.append(f"MD5 checksum mismatch. Expected: {target_md5}")
+                        return False
                 return True
 
             return False

@@ -198,6 +198,8 @@ class ConnectionManager:
             conn = Connection(
                 os=unicon_platform,
                 hostname=self.host,
+                learn_hostname=True,
+                goto_enable=False,
                 credentials={
                     'default': {
                         'username': self.username,
