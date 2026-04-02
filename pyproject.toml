@@ -3,7 +3,7 @@ name = "simple-upgrade"
 version = "0.1.0"
 description = "A simple Python package for network device firmware upgrades supporting Cisco, Juniper, Arista, and Palo Alto."
 readme = "README.md"
-requires-python = ">=3.11"
+requires-python = ">=3.13"
 dependencies = [
     "scrapli[textfsm]>=2026.2.20",
     "netmiko>=4.6.0",
