@@ -1,6 +1,10 @@
 """
 Arista EOS sync module - Fetches device information.
+
+Validates platform is Arista-specific before executing commands.
 """
+
+from typing import Dict, Any
 
 
 def fetch_info(connection, platform: str, commands: Dict[str, str]) -> Dict[str, Any]:
@@ -14,7 +18,20 @@ def fetch_info(connection, platform: str, commands: Dict[str, str]) -> Dict[str,
 
     Returns:
         Dictionary with device information
+
+    Raises:
+        ValueError: If platform is not an Arista platform
     """
+    # Validate platform is Arista
+    platform_lower = platform.lower().replace('-', '_')
+    valid_arista_platforms = ['arista_eos', 'arista', 'eos']
+
+    if platform_lower not in valid_arista_platforms:
+        raise ValueError(
+            f"Invalid platform for Arista sync: '{platform}'. "
+            f"Valid Arista platforms: {', '.join(valid_arista_platforms)}"
+        )
+
     info = {
         'manufacturer': 'Arista',
         'model': '',

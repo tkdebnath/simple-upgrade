@@ -1,6 +1,10 @@
 """
 Cisco IOS-XE/NX-OS sync module - Fetches device information.
+
+Validates platform is Cisco-specific before executing commands.
 """
+
+from typing import Dict, Any
 
 
 def fetch_info(connection, platform: str, commands: Dict[str, str]) -> Dict[str, Any]:
@@ -9,12 +13,25 @@ def fetch_info(connection, platform: str, commands: Dict[str, str]) -> Dict[str,
 
     Args:
         connection: Active connection object
-        platform: Platform name (cisco_iosxe, cisco_nxos)
+        platform: Platform name (cisco_ios, cisco_iosxe, cisco_nxos)
         commands: Dictionary of commands to execute
 
     Returns:
         Dictionary with device information
+
+    Raises:
+        ValueError: If platform is not a Cisco platform
     """
+    # Validate platform is Cisco
+    platform_lower = platform.lower().replace('-', '_')
+    valid_cisco_platforms = ['cisco_ios', 'cisco_iosxe', 'cisco_nxos', 'cisco_xe', 'cisco_nexus']
+
+    if platform_lower not in valid_cisco_platforms:
+        raise ValueError(
+            f"Invalid platform for Cisco sync: '{platform}'. "
+            f"Valid Cisco platforms: {', '.join(valid_cisco_platforms)}"
+        )
+
     info = {
         'manufacturer': 'Cisco',
         'model': '',

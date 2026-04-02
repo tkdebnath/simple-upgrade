@@ -1,6 +1,10 @@
 """
 Juniper Junos sync module - Fetches device information.
+
+Validates platform is Juniper-specific before executing commands.
 """
+
+from typing import Dict, Any
 
 
 def fetch_info(connection, platform: str, commands: Dict[str, str]) -> Dict[str, Any]:
@@ -14,7 +18,20 @@ def fetch_info(connection, platform: str, commands: Dict[str, str]) -> Dict[str,
 
     Returns:
         Dictionary with device information
+
+    Raises:
+        ValueError: If platform is not a Juniper platform
     """
+    # Validate platform is Juniper
+    platform_lower = platform.lower().replace('-', '_')
+    valid_juniper_platforms = ['juniper_junos', 'juniper', 'junos']
+
+    if platform_lower not in valid_juniper_platforms:
+        raise ValueError(
+            f"Invalid platform for Juniper sync: '{platform}'. "
+            f"Valid Juniper platforms: {', '.join(valid_juniper_platforms)}"
+        )
+
     info = {
         'manufacturer': 'Juniper',
         'model': '',
