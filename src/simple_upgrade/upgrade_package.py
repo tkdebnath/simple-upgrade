@@ -461,7 +461,7 @@ class UpgradePackage:
         Steps:
         1. Get hardware model from device
         2. Match model to device profile
-        3. Use profile's upgrade_commands for activation
+        3. Use manufacturer's activation module for the full workflow
 
         Updates:
             - stage_results: activate result
@@ -512,62 +512,30 @@ class UpgradePackage:
             if device_model:
                 profile = match_model_to_profile(device_model, 'cisco')
 
-            # Configure boot commands from profile (if available)
-            if profile and 'boot_commands' in profile:
-                boot_cmds = profile['boot_commands']
-                try:
-                    device_conn.execute('configure terminal', timeout=30)
-                    for cmd in boot_cmds:
-                        device_conn.execute(cmd, timeout=30)
-                    device_conn.execute('end', timeout=30)
-                    device_conn.execute('write memory', timeout=30)
-                except Exception as e:
-                    self.stage_results['activate'] = {
-                        'success': False,
-                        'message': f'Failed to configure boot commands: {e}'
-                    }
-                    self.errors.append(f"activate failed: boot config error - {e}")
-                    self.failed_stage = 'activate'
-                    return self
+            # Use manufacturer's activate_image function
+            from .manufacturers.cisco import activation
+            result = activation.activate_image(
+                device_conn,
+                platform=self.device_type or 'cisco_iosxe',
+                golden_image=self.golden_image,
+                device_profile=profile,
+                use_profile=True
+            )
 
-            # Build activation command
-            activate_cmd = None
-            if profile:
-                # Use profile-specific command
-                activate_cmd = get_upgrade_command('cisco', profile.get('model'), 'install_add')
-                self.device_info['device_profile'] = profile
-                self.device_info['profile_model'] = profile.get('model')
-            else:
-                # Fallback to standard IOS-XE command
-                activate_cmd = f"install add file {image_name} activate commit"
-
-            if not activate_cmd:
-                self.stage_results['activate'] = {
-                    'success': False,
-                    'message': 'Could not build activation command'
-                }
-                self.errors.append('activate failed: could not build command')
-                self.failed_stage = 'activate'
-                return self
-
-            # Execute activation command
-            output = device_conn.execute(activate_cmd, timeout=300)
-
-            # Check if activation was successful
-            if "installed" in str(output).lower() or "commit" in str(output).lower():
+            if result.get('success'):
                 self.stage_results['activate'] = {
                     'success': True,
-                    'message': 'Firmware activated successfully',
-                    'command': activate_cmd,
+                    'message': result.get('message', 'Firmware activated successfully'),
+                    'command': result.get('command'),
                     'profile': profile.get('model') if profile else None
                 }
             else:
                 self.stage_results['activate'] = {
                     'success': False,
-                    'message': f'Activation failed: {output}',
-                    'command': activate_cmd
+                    'message': result.get('message', 'Activation failed'),
+                    'command': result.get('command')
                 }
-                self.errors.append(f"activate failed: {output}")
+                self.errors.append(self.stage_results['activate']['message'])
                 self.failed_stage = 'activate'
 
         except Exception as e:

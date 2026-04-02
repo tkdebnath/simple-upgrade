@@ -1,14 +1,26 @@
 """
-Cisco IOS-XE/NX-OS activation module - Applies new firmware.
+Cisco IOS-XE activation module - Applies new firmware.
 
 This module provides Cisco-specific firmware activation using unicon.
-Supports: install add/activate/commit workflow (IOS-XE) and install commands (NX-OS).
+Supports: install add/activate/commit workflow (IOS-XE).
+
+Handles the complete activation workflow at manufacturer level:
+- Configure terminal
+- Boot commands from profile (if available)
+- Write memory (config save)
+- Activate command
 """
 
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 
 
-def activate_image(connection, platform: str, golden_image: Dict[str, Any]) -> Dict[str, Any]:
+def activate_image(
+    connection,
+    platform: str,
+    golden_image: Dict[str, Any],
+    device_profile: Optional[Dict[str, Any]] = None,
+    use_profile: bool = True
+) -> Dict[str, Any]:
     """
     Activate new firmware on Cisco device.
 
@@ -41,6 +53,20 @@ def activate_image(connection, platform: str, golden_image: Dict[str, Any]) -> D
     result['command'] = activate_cmd
 
     try:
+        # Configure boot commands from profile (if available)
+        if use_profile and device_profile and 'boot_commands' in device_profile:
+            boot_cmds = device_profile['boot_commands']
+            try:
+                connection.execute('configure terminal', timeout=30)
+                for cmd in boot_cmds:
+                    connection.execute(cmd, timeout=30)
+                connection.execute('end', timeout=30)
+                # Config save at manufacturer level
+                connection.execute('write memory', timeout=30)
+            except Exception as e:
+                result['message'] = f'Failed to configure boot commands: {str(e)}'
+                return result
+
         # Execute activation command
         output = connection.execute(activate_cmd)
 
