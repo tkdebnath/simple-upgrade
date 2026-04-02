@@ -5,39 +5,9 @@ This module determines the correct commands to execute based on the platform
 value from the centralized PLATFORM_MAPPINGS.
 """
 
-from typing import Dict, Any, Optional
+from typing import Dict, Any
 
-from .constants import PLATFORM_MAPPINGS, get_platform_for_library
-from .connection_manager import ConnectionManager, ConnectionError
-
-
-# Command mapping by platform family - basic commands for parsing
-DEVICE_COMMANDS = {
-    'cisco_ios': {
-        'version': 'show version',
-        'inventory': 'show inventory',
-    },
-    'cisco_iosxe': {
-        'version': 'show version',
-        'inventory': 'show inventory',
-    },
-    'cisco_nxos': {
-        'version': 'show version',
-        'inventory': 'show inventory',
-    },
-    'juniper_junos': {
-        'version': 'show version',
-        'inventory': 'show chassis hardware',
-    },
-    'arista_eos': {
-        'version': 'show version',
-        'inventory': 'show inventory',
-    },
-    'paloalto_panos': {
-        'version': 'show system info',
-        'inventory': 'show hardware',
-    },
-}
+from .constants import DEVICE_COMMANDS
 
 
 def get_device_commands(platform: str) -> Dict[str, str]:
@@ -77,82 +47,30 @@ def get_device_commands(platform: str) -> Dict[str, str]:
 class SyncManager:
     """
     Manages device synchronization - fetching device information.
-
-    Usage:
-        from simple_upgrade import ConnectionManager, SyncManager
-
-        cm = ConnectionManager(
-            host="192.168.1.1",
-            username="admin",
-            password="password",
-            device_type="cisco_xe"
-        )
-        conn = cm.get_connection(channel='scrapli')
-        platform = cm.get_platform(channel='scrapli')
-
-        sync = SyncManager(connection_manager=cm, platform=platform)
-        info = sync.fetch_info()
     """
 
     def __init__(
         self,
-        connection_manager: ConnectionManager,
-        platform: Optional[str] = None
+        connection_manager: Any,
+        platform: str
     ):
         """
         Initialize the SyncManager.
 
         Args:
             connection_manager: Active ConnectionManager instance
-            platform: Platform name (e.g., cisco_ios, cisco_iosxe, juniper_junos)
-                     If not provided, uses the active channel's platform.
+            platform: Platform name (e.g., cisco_ios, cisco_iosxe)
         """
         self.cm = connection_manager
-        self.platform = ''
-
-        # Device info storage - populate with values for your textfsm parsing
-        self.info: Dict[str, Any] = {
-            'hostname': None,
-            'version': None,
-            'current_version': None,
-            'model': None,
-            'serial': None,
-            'serial_number': None,
-            'manufacturer': None,
-            'platform': None,
-            'uptime': None,
-            'boot_method': None,
-            'boot_mode': None,
-            'ios_image': None,
-            'config_register': None,
-            'flash_size': None,
-            'memory_size': None,
-        }
-
-        # Determine platform
-        if platform:
-            self.platform = platform.lower().replace('-', '_')
-        elif connection_manager and connection_manager._active_channel:
-            self.platform = connection_manager.get_platform(connection_manager._active_channel)
-        elif connection_manager and connection_manager.device_type:
-            self.platform = get_platform_for_library(connection_manager.device_type, 'scrapli')
+        self.platform = platform.lower().replace('-', '_')
+        self.info: Dict[str, Any] = {}
 
     def _send_command(self, command: str) -> str:
         """
-        Send command based on the active channel type.
+        Send command to scrapli connection.
         """
-        conn = self.cm.get_active_channel()
-        output = ""
-
-        if conn == 'scrapli':
-            result = self.cm._scrapli_conn.send_command(command)
-            output = str(result.result)
-        elif conn == 'netmiko':
-            output = self.cm._netmiko_conn.send_command(command)
-        elif conn == 'unicon':
-            output = str(self.cm._unicon_conn.execute(command))
-
-        return output
+        result = self.cm._scrapli_conn.send_command(command)
+        return str(result.result)
 
     def fetch_info(self) -> Dict[str, Any]:
         """
@@ -171,42 +89,7 @@ class SyncManager:
         inventory_output = self._send_command(commands['inventory'])
         self.info['inventory'] = inventory_output
 
-        # Parse hostname from version output
-        self.info['hostname'] = self._parse_hostname(version_output)
-
-        # Parse manufacturer from platform
-        self.info['manufacturer'] = self._parse_manufacturer()
-
-        # Store raw platform
-        self.info['platform'] = self.platform
-
-        # Store current version
-        self.info['current_version'] = self.info['version']
-
         return self.info
-
-    def _parse_hostname(self, output: str) -> str:
-        """Parse hostname from version output."""
-        import re
-        match = re.search(r'hostname\s+(\S+)', output)
-        if match:
-            return match.group(1)
-        return 'Unknown'
-
-    def _parse_manufacturer(self) -> str:
-        """Determine manufacturer from platform."""
-        platform_lower = self.platform.lower()
-
-        if 'cisco' in platform_lower:
-            return 'Cisco'
-        elif 'juniper' in platform_lower or 'junos' in platform_lower:
-            return 'Juniper'
-        elif 'arista' in platform_lower or 'eos' in platform_lower:
-            return 'Arista'
-        elif 'paloalto' in platform_lower or 'panos' in platform_lower:
-            return 'Palo Alto Networks'
-        else:
-            return 'Unknown'
 
 
 def sync_device(
@@ -223,12 +106,14 @@ def sync_device(
         host: Device IP or hostname
         username: SSH username
         password: SSH password
-        platform: Platform name (e.g., cisco_ios, cisco_iosxe, juniper_junos)
+        platform: Platform name (e.g., cisco_ios, cisco_iosxe)
         port: SSH port
 
     Returns:
         Dictionary with device information
     """
+    from .connection_manager import ConnectionManager
+
     cm = ConnectionManager(
         host=host,
         username=username,
