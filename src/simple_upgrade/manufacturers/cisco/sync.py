@@ -97,12 +97,15 @@ def fetch_info(connection, channel: str, platform: str, commands: Dict[str, str]
                 if parsed_version:
                     if platform_lower in ['cisco_ios', 'cisco_iosxe']:
                         info['version'] = parsed_version[0].get('version', '')
+                        info['current_version'] = info['version']
 
                         if isinstance(parsed_version[0].get('serial'), list):
                             info['serial'] = parsed_version[0].get('serial')[0]
                         else:
                             info['serial'] = parsed_version[0].get('serial', '')
                         
+                        info['serial_number'] = info['serial']
+
                         if not info['hostname']:
                             info['hostname'] = parsed_version[0].get('hostname', '')
 
@@ -119,16 +122,12 @@ def fetch_info(connection, channel: str, platform: str, commands: Dict[str, str]
                     elif platform_lower == 'cisco_nxos':
                         # not yet implemented
                         pass
-                
 
-        
     else:
         # Fallback: just use the connection without context manager
         # Fetch version
         version_output = connection.send_command(commands.get('show_version', 'show version'))
         info['version'] = version_output
         info['current_version'] = info['version']
-
-        
 
     return info
