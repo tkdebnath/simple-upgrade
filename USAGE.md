@@ -1,608 +1,20 @@
 # simple-upgrade Usage Guide
 
-This guide covers all usage patterns for the simple-upgrade library.
-
 ## Table of Contents
 
 - [Quick Start](#quick-start)
 - [Connection Modes](#connection-modes)
-  - [Normal Mode (Real Upgrade)](#normal-mode-real-upgrade)
-  - [Mock Mode (Pipeline Simulation)](#mock-mode-pipeline-simulation)
-  - [Dry-Run Mode (Real Connection, Mock Commands)](#dry-run-mode-real-connection-mock-commands)
-- [Manufacturer-Specific Behavior](#manufacturer-specific-behavior)
-- [Execution Path Tracking](#execution-path-tracking)
-- [Device Model Inference](#device-model-inference)
-
-**Note:** For Cisco devices, only c9300 series models are currently supported.
+- [UpgradePackage Reference](#upgradepackage-reference)
+- [Stage Reference](#stage-reference)
+- [Image and File Server Config](#image-and-file-server-config)
+- [ConnectionManager](#connectionmanager)
+- [SyncManager](#syncmanager)
+- [Device Profiles and Model Matching](#device-profiles-and-model-matching)
+- [Checks and Report](#checks-and-report)
 
 ---
 
 ## Quick Start
-
-```python
-from simple_upgrade import UpgradeManager
-
-# Create upgrade manager
-manager = UpgradeManager(
-    host="192.168.1.1",
-    username="admin",
-    password="password123",
-    device_type="cisco_xe",
-    golden_image={
-        "version": "17.9.4",
-        "image_name": "flash:c9300-universalk9.17.9.4.SPA.bin"
-    },
-    file_server={
-        "ip": "10.0.0.10",
-        "protocol": "http",
-        "base_path": "/tftpboot"
-    }
-)
-
-# Execute upgrade
-result = manager.upgrade()
-
-# Check results
-if result['success']:
-    print("Upgrade successful!")
-else:
-    print("Upgrade failed:", result['errors'])
-```
-
----
-
-## Connection Modes
-
-The library supports three connection modes for different use cases.
-
-### Normal Mode (Real Upgrade)
-
-Executes the full upgrade pipeline with real SSH connections to the device.
-
-```python
-from simple_upgrade import UpgradeManager
-
-manager = UpgradeManager(
-    host="192.168.1.1",
-    username="admin",
-    password="password",
-    device_type="cisco_xe",
-    connection_mode="normal",  # Default
-    golden_image={"version": "17.9.4", "image_name": "flash:c9300.bin"},
-    file_server={"ip": "10.0.0.10", "protocol": "http", "base_path": "/tftpboot"}
-)
-
-result = manager.upgrade()
-print(result['success'])
-```
-
-**Stage Execution:**
-1. Readiness - Validate device can be upgraded
-2. Pre-check - Run pre-upgrade validations
-3. Distribute - Download firmware image
-4. Activate - Apply new firmware
-5. Wait - Wait for stabilization
-6. Ping - Verify device is reachable
-7. Post-check - Run post-upgrade validations
-8. Verification - Confirm version matches target
-
----
-
-### Mock Mode (Pipeline Simulation)
-
-Simulates the entire upgrade pipeline without any real connections. Use for testing, CI/CD validation, or planning.
-
-```python
-from simple_upgrade import UpgradeManager
-
-manager = UpgradeManager(
-    host="192.168.1.1",
-    username="admin",
-    password="password",
-    device_type="cisco_xe",
-    connection_mode="mock",  # Mock mode
-    golden_image={"version": "17.9.4", "image_name": "flash:c9300.bin"},
-    file_server={"ip": "10.0.0.10", "protocol": "http", "base_path": "/tftpboot"}
-)
-
-result = manager.upgrade()
-
-# View the simulated pipeline
-print(f"Success: {result['success']}")
-print(f"Manufacturer: {result['manufacturer']}")
-print(f"Model: {result['model']}")
-print(f"Commands that would execute: {result['commands_executed']}")
-print(f"Execution path: {result['execution_path']}")
-```
-
-**Key Features:**
-- No actual SSH connection to device
-- Simulates all stages with manufacturer-specific outputs
-- Returns `commands_executed` list showing what would run
-- Returns `execution_path` for tracking class -> function -> line
-- Returns `manufacturer`, `model`, and `platform` information
-
-**Mock Output by Manufacturer:**
-
-| Manufacturer | Readiness | Distribute | Activate |
-|--------------|-----------|------------|----------|
-| Cisco | "Cisco readiness check: Device is ready for upgrade" | `copy http://10.0.0.10/tftpboot/image.bin flash:/image.bin` | `install add file image.bin activate commit` |
-| Juniper | "Juniper readiness check: Device is ready for upgrade" | `request system software add http://10.0.0.10/tftpboot/image.bin` | `request system software add image.bin reboot` |
-| Arista | "Arista readiness check: Device is ready for upgrade" | `copy http://10.0.0.10/tftpboot/image.bin flash:/image.bin` | `install image flash:/image.bin` |
-
----
-
-### Dry-Run Mode (Real Connection, Mock Commands)
-
-Connects to the real device but only executes `show` commands; all upgrade commands are mocked. Use for testing without risking an actual upgrade.
-
-```python
-from simple_upgrade import UpgradeManager
-
-manager = UpgradeManager(
-    host="192.168.1.1",
-    username="admin",
-    password="password",
-    device_type="cisco_xe",
-    connection_mode="dry_run",  # Dry-run mode
-    golden_image={"version": "17.9.4", "image_name": "flash:c9300.bin"},
-    file_server={"ip": "10.0.0.10", "protocol": "http", "base_path": "/tftpboot"}
-)
-
-result = manager.upgrade()
-
-# View what would happen
-print(f"Success: {result['success']}")
-print(f"Show commands executed: {result['show_commands']}")
-print(f"Mocked upgrade commands: {result['mocked_commands']}")
-print(f"Execution path: {result['execution_path']}")
-```
-
-**Key Features:**
-- Establishes real SSH connection to device
-- Executes `show version`, `show inventory`, `dir` etc. with real output
-- Mocks upgrade commands (`copy`, `install`, `activate`, `commit`)
-- Returns `execution_path` showing full call stack
-- Returns `show_commands_executed` and `mocked_commands` separately
-
-**Dry-Run Execution Path Example:**
-
-```python
-{
-    "execution_path": [
-        {"class": "DryRunConnection", "function": "open", "line": 169, "stage": ""},
-        {"class": "DryRunConnection", "function": "send_command", "line": 183, "stage": "readiness"},
-        {"class": "DryRunUpgradeWorkflow", "function": "_run_stage", "line": 405, "stage": "readiness"},
-        {"class": "DryRunUpgradeWorkflow", "function": "_mock_readiness", "line": 450, "stage": "readiness"},
-        {"class": "DryRunConnection", "function": "send_command", "line": 183, "stage": "distribute"},
-        {"class": "DryRunUpgradeWorkflow", "function": "_run_stage", "line": 405, "stage": "distribute"},
-        {"class": "DryRunUpgradeWorkflow", "function": "_mock_distribute", "line": 477, "stage": "distribute"},
-        # ... continues through all stages
-    ]
-}
-```
-
----
-
-## Manufacturer-Specific Behavior
-
-The library automatically detects the manufacturer and uses manufacturer-specific commands.
-
-### Cisco Devices (IOS, IOS-XE, NX-OS)
-
-**Detection:** `device_type` contains 'cisco'
-
-**Readiness Check:**
-```
-Cisco readiness check: Device is ready for upgrade
-```
-
-**Distribute Command:**
-```
-copy http://10.0.0.10/tftpboot/image.bin flash:/image.bin
-```
-
-**Activate Command (IOS-XE):**
-```
-install add file image.bin activate commit
-```
-
-**Activate Command (NX-OS):**
-```
-install image image.bin
-```
-
-### Juniper Devices (Junos)
-
-**Detection:** `device_type` contains 'juniper' or 'junos'
-
-**Readiness Check:**
-```
-Juniper readiness check: Device is ready for upgrade
-```
-
-**Distribute Command:**
-```
-request system software add http://10.0.0.10/tftpboot/image.bin
-```
-
-**Activate Command:**
-```
-request system software add image.bin reboot
-```
-
-### Arista Devices (EOS)
-
-**Detection:** `device_type` contains 'arista' or 'eos'
-
-**Readiness Check:**
-```
-Arista readiness check: Device is ready for upgrade
-```
-
-**Distribute Command:**
-```
-copy http://10.0.0.10/tftpboot/image.bin flash:/image.bin
-```
-
-**Activate Command:**
-```
-install image flash:/image.bin
-```
-
----
-
-## Execution Path Tracking
-
-The execution path feature allows you to trace which classes and functions would be executed during a real run.
-
-### Example: Mock Mode Execution Path
-
-```python
-from simple_upgrade import UpgradeManager
-
-manager = UpgradeManager(
-    host="192.168.1.1",
-    username="admin",
-    password="password",
-    device_type="cisco_xe_c9300",
-    connection_mode="mock",
-    golden_image={"version": "17.9.4", "image_name": "flash:c9300.bin"},
-    file_server={"ip": "10.0.0.10", "protocol": "http", "base_path": "/tftpboot"}
-)
-
-result = manager.upgrade()
-
-# Print execution path
-for step in result['execution_path']:
-    print(f"{step['class']} -> {step['function']} (line {step['line']}) [{step['stage']}]")
-```
-
-**Output:**
-```
-MockUpgradeWorkflow -> __init__ (line 268) []
-MockUpgradeWorkflow -> _get_manufacturer (line 292) []
-MockUpgradeWorkflow -> _get_model (line 306) []
-MockUpgradeWorkflow -> _get_platform (line 359) []
-MockUpgradeWorkflow -> _init_stages (line 374) []
-MockUpgradeWorkflow -> _run_stage (line 396) [readiness]
-MockUpgradeWorkflow -> _mock_readiness (line 444) [readiness]
-MockUpgradeWorkflow -> _run_stage (line 396) [pre_check]
-MockUpgradeWorkflow -> _mock_pre_check (line 458) [pre_check]
-MockUpgradeWorkflow -> _run_stage (line 396) [distribute]
-MockUpgradeWorkflow -> _mock_distribute (line 471) [distribute]
-MockUpgradeWorkflow -> _run_stage (line 396) [activate]
-MockUpgradeWorkflow -> _mock_activate (line 497) [activate]
-MockUpgradeWorkflow -> _run_stage (line 396) [wait]
-MockUpgradeWorkflow -> _mock_wait (line 519) [wait]
-MockUpgradeWorkflow -> _run_stage (line 396) [ping]
-MockUpgradeWorkflow -> _mock_ping (line 529) [ping]
-MockUpgradeWorkflow -> _run_stage (line 396) [post_check]
-MockUpgradeWorkflow -> _mock_post_check (line 538) [post_check]
-MockUpgradeWorkflow -> _run_stage (line 396) [verification]
-MockUpgradeWorkflow -> _mock_verification (line 543) [verification]
-```
-
-### Example: Dry-Run Mode Execution Path
-
-```python
-manager = UpgradeManager(
-    host="192.168.1.1",
-    username="admin",
-    password="password",
-    device_type="juniper_junos",
-    connection_mode="dry_run",
-    golden_image={"version": "22.4R1", "image_name": "junos-juniper-srx-22.4R1.tgz"},
-    file_server={"ip": "10.0.0.10", "protocol": "http", "base_path": "/tftpboot"}
-)
-
-result = manager.upgrade()
-
-# Print execution path
-for step in result['execution_path']:
-    print(f"{step['class']} -> {step['function']} (line {step['line']}) [{step['stage']}]")
-```
-
-**Output shows both DryRunConnection and DryRunUpgradeWorkflow class interactions:**
-```
-DryRunConnection -> open (line 169) []
-DryRunConnection -> send_command (line 183) [readiness]
-DryRunUpgradeWorkflow -> _run_stage (line 405) [readiness]
-DryRunUpgradeWorkflow -> _mock_readiness (line 447) [readiness]
-DryRunConnection -> send_command (line 183) [readiness]
-DryRunConnection -> send_command (line 183) [distribute]
-DryRunUpgradeWorkflow -> _run_stage (line 405) [distribute]
-DryRunUpgradeWorkflow -> _mock_distribute (line 477) [distribute]
-DryRunConnection -> send_command (line 183) [activate]
-DryRunUpgradeWorkflow -> _run_stage (line 405) [activate]
-DryRunUpgradeWorkflow -> _mock_activate (line 499) [activate]
-...
-```
-
----
-
-## Device Model Inference
-
-The library automatically infers the device model from `device_type` - no need to specify exact model.
-
-### Cisco Models
-
-**Note:** Only c9300 series models are currently supported for Cisco IOS-XE.
-
-| Device Type | Inferred Model |
-|-------------|----------------|
-| `cisco_xe_c9300` | C9300 |
-| `cisco_xe_c9300l` | C9300L |
-| `cisco_xe_c9300x` | C9300X |
-| `cisco_xe` (default) | C9300 |
-
-### Juniper Models
-
-| Device Type | Inferred Model |
-|-------------|----------------|
-| `juniper_junos_mx` | MX |
-| `juniper_junos_qfx` | QFX |
-| `juniper_junos_srx` | SRX |
-| `juniper_junos_ptx` | PTX |
-| `juniper_junos` (default) | MX |
-
-### Arista Models
-
-| Device Type | Inferred Model |
-|-------------|----------------|
-| `arista_eos_7050` | 7050 |
-| `arista_eos_7280` | 7280 |
-| `arista_eos_7500` | 7500 |
-| `arista_eos` (default) | 7050 |
-
-### Example: Automatic Model Inference
-
-```python
-from simple_upgrade import UpgradeManager
-
-# Model is automatically inferred from device_type
-# For Cisco, only c9300 series is supported
-manager = UpgradeManager(
-    host="192.168.1.1",
-    username="admin",
-    password="password",
-    device_type="cisco_xe_c9300",  # Model inferred as C9300
-    connection_mode="mock",
-    golden_image={"version": "17.9.4", "image_name": "flash:c9300.bin"},
-    file_server={"ip": "10.0.0.10", "protocol": "http", "base_path": "/tftpboot"}
-)
-
-result = manager.upgrade()
-print(f"Model: {result['model']}")  # Output: C9400
-print(f"Manufacturer: {result['manufacturer']}")  # Output: Cisco
-```
-
----
-
-## Device Model Mapping
-
-The library supports a flexible system for mapping multiple device model names to a single device profile.
-
-### Device Profile Models List
-
-Device profiles can include a `models` list that defines all model names that should match this profile:
-
-```json
-{
-  "manufacturer": "Cisco",
-  "model": "c9300",
-  "models": ["C9300", "C9300L", "C9300X", "C9300UX"],
-  "mode": "switch",
-  "series": "Catalyst 9300",
-  ...
-}
-```
-
-### Using `match_model_to_profile()`
-
-The `match_model_to_profile()` function finds the profile for a given model:
-
-```python
-from simple_upgrade import match_model_to_profile
-
-# Match C9300 to its profile
-profile = match_model_to_profile('C9300', 'cisco')
-print(profile['series'])  # Output: Catalyst 9300
-
-# Match C9300L (in models list) to the same profile
-profile = match_model_to_profile('C9300L', 'cisco')
-print(profile['series'])  # Output: Catalyst 9300
-```
-
-### Using `find_device_profile()` with Model
-
-The `find_device_profile()` function also checks the models list:
-
-```python
-from simple_upgrade import find_device_profile
-
-# Find profile for any C9300 variant
-profiles = find_device_profile(manufacturer='cisco', model='C9300X')
-if profiles:
-    profile = profiles[0]
-    print(profile['model'])  # Output: c9300
-```
-
-### Benefits of Models List
-
-- **Flexibility**: One profile can cover multiple model variants
-- **Simplified maintenance**: Update one profile for similar devices
-- **Backward compatibility**: Old model names can still work
-
-### Example: Using Model Mapping in Mock Mode
-
-```python
-from simple_upgrade import UpgradeManager
-
-# All these model types will use the same c9300 profile
-for model in ['C9300', 'C9300L', 'C9300X', 'C9300UX']:
-    manager = UpgradeManager(
-        host="192.168.1.1",
-        username="admin",
-        password="password",
-        device_type="cisco_xe",
-        connection_mode="mock",
-        golden_image={"version": "17.9.4", "image_name": f"flash:{model}.bin"},
-        file_server={"ip": "10.0.0.10", "protocol": "http", "base_path": "/tftpboot"}
-    )
-    manager.connect()
-    result = manager.upgrade()
-    print(f"{model}: {result['manufacturer']} {result['model']}")
-```
-
----
-
-## Complete Example: Mock Mode with Execution Path
-
-## Complete Example: Mock Mode with Execution Path
-
-```python
-from simple_upgrade import UpgradeManager
-import json
-
-# Setup upgrade manager in mock mode
-manager = UpgradeManager(
-    host="192.168.1.1",
-    username="admin",
-    password="password",
-    device_type="juniper_junos_mx",
-    connection_mode="mock",
-    golden_image={
-        "version": "22.4R1",
-        "image_name": "junos-juniper-srx-22.4R1.tgz"
-    },
-    file_server={
-        "ip": "10.0.0.10",
-        "protocol": "http",
-        "base_path": "/tftpboot"
-    }
-)
-
-# Execute upgrade
-result = manager.upgrade()
-
-# Print detailed results
-print("=" * 60)
-print("UPGRADE SIMULATION RESULT")
-print("=" * 60)
-print(f"Success: {result['success']}")
-print(f"Manufacturer: {result['manufacturer']}")
-print(f"Model: {result['model']}")
-print(f"Platform: {result['platform']}")
-
-print("\nSTAGES:")
-for name, stage in result['stages'].items():
-    print(f"  {name}: {stage['status']} - {stage['message']}")
-
-print("\nCOMMANDS EXECUTED:")
-for cmd in result['commands_executed']:
-    print(f"  [{cmd.get('stage', 'N/A')}] {cmd.get('command', 'N/A')}")
-
-print("\nEXECUTION PATH:")
-for step in result['execution_path']:
-    print(f"  {step['class']} -> {step['function']} (line {step['line']})")
-
-# Save results to file
-with open('upgrade_simulation.json', 'w') as f:
-    json.dump(result, f, indent=2)
-```
-
----
-
-## Complete Example: Dry-Run Mode with Execution Path
-
-```python
-from simple_upgrade import UpgradeManager
-import json
-
-# Setup upgrade manager in dry-run mode
-manager = UpgradeManager(
-    host="192.168.1.1",  # Real device IP
-    username="admin",
-    password="password",
-    device_type="arista_eos_7280",
-    connection_mode="dry_run",
-    golden_image={
-        "version": "4.28.3F",
-        "image_name": "EPE-4.28.3F.swi"
-    },
-    file_server={
-        "ip": "10.0.0.10",
-        "protocol": "http",
-        "base_path": "/tftpboot"
-    }
-)
-
-# Execute dry-run
-result = manager.upgrade()
-
-print("=" * 60)
-print("DRY-RUN RESULT")
-print("=" * 60)
-print(f"Success: {result['success']}")
-
-print("\nSHOW COMMANDS EXECUTED (REAL):")
-for cmd in result.get('show_commands', []):
-    print(f"  {cmd}")
-
-print("\nUPGRADE COMMANDS (MOCKED):")
-for cmd in result.get('mocked_commands', []):
-    print(f"  {cmd}")
-
-print("\nEXECUTION PATH:")
-for step in result['execution_path']:
-    print(f"  {step['class']} -> {step['function']} (line {step['line']}) [{step['stage']}]")
-```
-
----
-
-## Summary
-
-| Mode | Connection | Use Case |
-|------|------------|----------|
-| `normal` | Real SSH | Actual firmware upgrade |
-| `mock` | None | Testing, CI/CD, planning |
-| `dry_run` | Real (show only) | Safety check without upgrade |
-
-| Feature | Mock Mode | Dry-Run Mode | Normal Mode |
-|---------|-----------|--------------|-------------|
-| Real SSH | No | Yes | Yes |
-| Show commands | Mocked | Real | Real |
-| Upgrade commands | Mocked | Mocked | Real |
-| Execution path | Yes | Yes | No |
-| Manufacturer-specific | Yes | Yes | Yes |
-| Model inference | Yes | Yes | Yes |
-
----
-
-## UpgradePackage Class
-
-For a more object-oriented approach with shared state across stages:
 
 ```python
 from simple_upgrade import UpgradePackage
@@ -610,40 +22,422 @@ from simple_upgrade import UpgradePackage
 upgrade = UpgradePackage(
     host="192.168.1.1",
     username="admin",
-    password="password",
-    device_type="cisco_xe",
-    golden_image={"version": "17.9.4", "image_name": "flash:c9300.bin"},
-    file_server={"ip": "10.0.0.10", "protocol": "http", "base_path": "/tftpboot"}
+    password="password123",
+    device_type="cisco_iosxe",
+    golden_image={
+        "version": "17.9.4",
+        "image_name": "cat9k_iosxe.17.09.04.SPA.bin"   # no flash: prefix
+    },
+    file_server={
+        "ip": "10.0.0.10",
+        "protocol": "http",
+        "base_path": "/images"
+    }
 )
 
-upgrade.sync()           # Updates device_info
-upgrade.readiness()      # Updates readiness_result
-upgrade.pre_check()      # Updates pre_check_result
-upgrade.activate()       # Updates activate_result
-upgrade.wait()           # Updates wait_result
-upgrade.post_check()     # Updates post_check_result
-upgrade.verification()   # Updates verification_result
+(upgrade
+    .sync()
+    .readiness()
+    .pre_check()
+    .distribute()
+    .activate()
+    .wait()
+    .ping()
+    .post_check()
+    .verification()
+)
 
 if upgrade.success:
-    print("Upgrade successful")
+    print("Upgrade successful!")
 else:
-    print(f"Failed at stage: {upgrade.failed_stage}")
+    print(f"Failed at: {upgrade.failed_stage}")
+    print(f"Errors: {upgrade.errors}")
 ```
 
-## Device Information Attributes
+---
 
-The `SyncManager.fetch_info()` returns:
+## Connection Modes
 
-| Attribute | Description |
-|-----------|-------------|
-| `manufacturer` | Device manufacturer |
-| `model` | Device model |
-| `version` | Software version |
+### Normal Mode
+
+Full upgrade with real device connections.
+
+```python
+upgrade = UpgradePackage(
+    host="192.168.1.1",
+    username="admin",
+    password="password",
+    device_type="cisco_iosxe",
+    connection_mode="normal",   # default
+    golden_image={"version": "17.9.4", "image_name": "cat9k_iosxe.17.09.04.SPA.bin"},
+    file_server={"ip": "10.0.0.10", "protocol": "http", "base_path": "/images"}
+)
+
+upgrade.sync().readiness().distribute().activate().wait().ping().post_check().verification()
+```
+
+### Mock Mode
+
+No real connections. All stages simulated. Returns the exact CLI commands that would run.
+
+```python
+upgrade = UpgradePackage(
+    host="192.168.1.1",
+    username="admin",
+    password="password",
+    device_type="cisco_iosxe",
+    connection_mode="mock",
+    golden_image={"version": "17.9.4", "image_name": "cat9k_iosxe.17.09.04.SPA.bin"},
+    file_server={"ip": "10.0.0.10", "protocol": "http", "base_path": "/images"}
+)
+
+upgrade.sync().distribute().activate()
+
+# Result shows what would run
+print(upgrade.stage_results['distribute']['message'])
+# [MOCK] Would execute: copy http://10.0.0.10/images/cat9k_iosxe.17.09.04.SPA.bin flash:cat9k_iosxe.17.09.04.SPA.bin
+
+print(upgrade.stage_results['activate']['message'])
+# [MOCK] Would execute: install add file flash:cat9k_iosxe.17.09.04.SPA.bin activate commit
+```
+
+> **Note:** In mock mode, `device.model` is populated by `MockSyncManager`. Hardware model comes from `device.model` set after `sync()` — it is **never** inferred from `device_type`.
+
+### Dry-Run Mode
+
+Connects to a real device via SSH. Executes show commands for real (readiness, pre/post checks). Mocks all upgrade commands (distribute, activate).
+
+```python
+upgrade = UpgradePackage(
+    host="192.168.1.1",
+    username="admin",
+    password="password",
+    device_type="cisco_iosxe",
+    connection_mode="dry_run",
+    golden_image={"version": "17.9.4", "image_name": "cat9k_iosxe.17.09.04.SPA.bin"},
+    file_server={"ip": "10.0.0.10", "protocol": "http", "base_path": "/images"}
+)
+
+upgrade.sync().readiness().pre_check().distribute().activate()
+
+print(upgrade.stage_results['distribute']['message'])
+# [DRY-RUN] Would execute: copy http://10.0.0.10/images/cat9k_iosxe.17.09.04.SPA.bin flash:cat9k_iosxe.17.09.04.SPA.bin
+```
+
+| Feature | `normal` | `mock` | `dry_run` |
+|---------|----------|--------|-----------|
+| Real SSH | Yes | No | Yes |
+| Show commands | Real | Simulated | Real |
+| Upgrade commands | Real | Simulated | Simulated |
+| Unicon connection | Yes | No | No |
+
+---
+
+## UpgradePackage Reference
+
+### Constructor Parameters
+
+```python
+UpgradePackage(
+    host: str,
+    username: str,
+    password: str,
+    device_type: str,                  # cisco_iosxe, cisco_xe, cisco_ios
+    golden_image: dict,
+    file_server: dict,
+    port: int = 22,
+    connection_mode: str = "normal",   # normal | mock | dry_run
+    **device_kwargs                    # passed to ConnectionManager
+)
+```
+
+### Chaining Stages
+
+All stage methods return `self`, enabling method chaining:
+
+```python
+(upgrade
+    .sync()          # → populates device_info (model, version, hostname, serial, ...)
+    .readiness()     # → checks flash space, platform, version
+    .pre_check()     # → saves pre-upgrade snapshots to output/
+    .distribute()    # → copies image to flash via HTTP/HTTPS (unicon)
+    .activate()      # → install add/activate/commit + reload (unicon)
+    .wait()          # → sleep + ping loop (10 min default)
+    .ping()          # → final reachability check
+    .post_check()    # → saves post-upgrade snapshots to output/
+    .verification()  # → confirms version matches target
+)
+```
+
+### Result Inspection
+
+```python
+# Overall
+upgrade.success           # bool
+upgrade.failed_stage      # str | None
+upgrade.errors            # list[str]
+upgrade.device_info       # dict — populated after sync()
+
+# Per-stage
+upgrade.stage_results['sync']
+upgrade.stage_results['readiness']
+upgrade.stage_results['distribute']
+upgrade.stage_results['activate']
+# Each has: {'success': bool, 'message': str, ...}
+```
+
+---
+
+## Stage Reference
+
+### `sync()`
+
+Fetches device information. In mock mode, uses `MockSyncManager`. In dry-run/normal mode, connects via scrapli and runs `show version`, `show inventory`, `show run | include tacacs`.
+
+```python
+upgrade.sync()
+print(upgrade.device_info['model'])      # e.g. 'C9300' (hardware model from show version)
+print(upgrade.device_info['version'])    # e.g. '17.9.3'
+print(upgrade.device_info['hostname'])   # e.g. 'hkd-swi-cat9k-01'
+```
+
+### `distribute()`
+
+Downloads firmware from file server to device flash using unicon. Uses `connection_manager.get_connection('unicon')`.
+
+**Pre-download behaviour:**
+- If the file already exists on flash with correct size and MD5 — skips download
+- Pushes `ip http client source-interface <interface>` before download if source interface is set
+
+**Copy command format:**
+```
+copy http://<server_ip>/<base_path>/<image_name> flash:<image_name>
+```
+
+**Verification (3-tier):**
+1. Output contains byte count
+2. File size matches golden_image config
+3. MD5 checksum matches
+
+### `activate()`
+
+Runs the full Catalyst 9K install workflow via unicon:
+
+```
+install add file flash:<image> activate commit
+```
+
+- Handles interactive prompts (`Do you want to proceed?`, `Reload this box?`)
+- 3600s timeout on install command
+- Checks output for `Error` / `Failed` / `%` prefix
+
+### `wait()`
+
+Sleeps for a configurable time (default 600s) then pings until device is reachable. Maximum wait 10 minutes.
+
+### `verification()`
+
+Connects via scrapli and runs `show version` to confirm running version matches `golden_image['version']`.
+
+---
+
+## Image and File Server Config
+
+### `golden_image`
+
+```python
+golden_image = {
+    "version": "17.9.4",                           # target version string
+    "image_name": "cat9k_iosxe.17.09.04.SPA.bin"  # filename only — NO flash: prefix
+}
+```
+
+> Do **not** include `flash:/` or `flash:` in `image_name`. The library strips any such prefix automatically, but it is cleaner to omit it.
+
+### `file_server`
+
+```python
+file_server = {
+    "ip": "10.0.0.10",
+    "protocol": "http",        # http or https only
+    "base_path": "/images",    # URL path on the server
+    "source_interface": "GigabitEthernet0/0"   # optional
+}
+```
+
+> Only `http` and `https` are supported. TFTP, SCP, and FTP are intentionally disabled.
+
+---
+
+## ConnectionManager
+
+Provides unified scrapli / unicon connections.
+
+```python
+from simple_upgrade import ConnectionManager
+
+cm = ConnectionManager(
+    host="192.168.1.1",
+    username="admin",
+    password="password",
+    device_type="cisco_iosxe",
+    enable_password="enable123",
+    enable_mode=True,
+    connection_timeout=30,
+    auth_strict_key=False
+)
+
+# scrapli — for show commands, checks, verification
+sc = cm.get_connection(channel='scrapli')
+output = sc.send_command("show version")
+print(output.result)
+
+# unicon — for interactive commands (copy, install)
+uc = cm.get_connection(channel='unicon')
+uc.configure(["no boot system", "boot system flash:packages.conf"])
+
+cm.disconnect()
+```
+
+### Parameters
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `host` | str | — | Device IP or hostname |
+| `username` | str | — | SSH username |
+| `password` | str | — | SSH password |
+| `device_type` | str | — | Platform — `cisco_iosxe`, `cisco_xe`, `cisco_ios` |
+| `port` | int | 22 | SSH port |
+| `timeout` | int | 30 | Command timeout (seconds) |
+| `connection_timeout` | int | 30 | Connection timeout (seconds) |
+| `enable_mode` | bool | False | Enter enable mode |
+| `enable_password` | str | None | Enable password |
+| `auth_strict_key` | bool | False | Strict SSH host-key checking |
+
+> **Note:** Use `enable_password`, not `secret`. Passing `secret` has no effect.
+
+---
+
+## SyncManager
+
+```python
+from simple_upgrade import ConnectionManager, SyncManager
+
+cm = ConnectionManager(host="192.168.1.1", username="admin",
+                       password="password", device_type="cisco_iosxe")
+conn = cm.get_connection(channel='scrapli')
+conn.open()
+
+platform = cm.get_platform(channel='scrapli')
+sync = SyncManager(connection_manager=cm, platform=platform)
+info = sync.fetch_info()
+```
+
+### Using the standalone function
+
+```python
+from simple_upgrade import sync_device
+
+info = sync_device(
+    host="192.168.1.1",
+    username="admin",
+    password="password",
+    platform="cisco_iosxe"
+)
+```
+
+### Returned Fields
+
+| Field | Description |
+|-------|-------------|
+| `manufacturer` | `Cisco` |
+| `model` | Hardware model (e.g. `C9300`) — from `show version` |
+| `version` | Software version (e.g. `17.9.4`) |
 | `hostname` | Device hostname |
-| `serial_number` | Device serial number |
-| `uptime` | Device uptime |
+| `serial_number` | Chassis serial |
+| `uptime` | Uptime string |
 | `boot_method` | Boot image path |
-| `config_register` | Configuration register value |
-| `tacacs_source_interface` | TACACS+ source interface |
-| `flash_size` | Flash memory size |
-| `memory_size` | System memory size |
+| `config_register` | Config register |
+| `tacacs_source_interface` | TACACS+ source interface, if configured |
+| `flash_size` | Flash storage |
+| `memory_size` | DRAM |
+
+---
+
+## Device Profiles and Model Matching
+
+Device profiles live in `device_profiles/cisco/`. Model matching is **case-insensitive**.
+
+```python
+from simple_upgrade import match_model_to_profile
+
+profile = match_model_to_profile('C9300', 'cisco')   # matches
+profile = match_model_to_profile('c9300', 'cisco')   # also matches
+profile = match_model_to_profile('C9300L', 'cisco')  # matches via models list
+```
+
+### Cisco Profiles
+
+| Profile file | Primary model | Also matches |
+|---|---|---|
+| `c9300.json` | `c9300` | C9300, C9300L, C9300X, C9300UX |
+| `c9400.json` | `C9400` | — |
+| `c9500.json` | `c9500` | — |
+| `catalyst_9200.json` | `catalyst_9200` | — |
+| `catalyst_9200xl.json` | `catalyst_9200xl` | — |
+| `catalyst_9300x.json` | `catalyst_9300x` | — |
+| `catalyst_3650.json` | `catalyst_3650` | — |
+| `catalyst_3850.json` | `catalyst_3850` | — |
+
+> **Platform vs Model:** `device_type` is the **software platform** (e.g. `cisco_iosxe`). Hardware model (e.g. `C9300`) is a separate concept populated from `show version` during `sync()`. Never infer hardware model from `device_type`.
+
+---
+
+## Checks and Report
+
+### Pre/Post Checks
+
+```python
+from simple_upgrade import Checks
+
+checks = Checks(
+    host="192.168.1.1",
+    username="admin",
+    password="password",
+    device_type="cisco_iosxe",
+    secret="enable123"   # maps to enable_password
+)
+
+results = checks.run_all()
+checks.save_to_file("output/pre_check")
+```
+
+### Report Generator
+
+Compare pre and post check results:
+
+```python
+from simple_upgrade import ReportGenerator
+
+generator = ReportGenerator(
+    pre_checks=pre_results,
+    post_checks=post_results
+)
+
+report = generator.generate_report()
+generator.save_report(report, "upgrade_report.txt")
+```
+
+---
+
+## Summary
+
+| Concept | Value |
+|---------|-------|
+| Primary API | `UpgradePackage` |
+| Distribute/Activate library | unicon (pyATS/genie) |
+| Readiness/Checks library | scrapli |
+| Supported OS | Cisco IOS-XE only (production) |
+| Transfer protocols | HTTP and HTTPS only |
+| Model matching | Case-insensitive, via `device_profiles/cisco/*.json` |
+| Hardware model source | `show version` (not inferred from `device_type`) |
