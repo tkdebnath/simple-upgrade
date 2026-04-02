@@ -7,6 +7,10 @@ Validates platform and channel before executing checks.
 import re
 from typing import Dict, Any
 
+# import helpers
+from .__helpers import flash_free_space
+from netutils.os_version import compare_version_loose
+
 
 def _validate_channel(connection) -> None:
     """
@@ -144,11 +148,50 @@ def check_readiness(connection, channel: str, platform: str, commands: Dict[str,
     # Use connection as context manager if it supports __enter__ and __exit__
     if hasattr(connection, '__enter__') and hasattr(connection, '__exit__'):
         with connection:
-            # Check 2: Get flash space
-            flash_output = connection.send_command(commands.get('dir', 'dir'))
-            flash_output_str = str(flash_output.result)
-            flash_info = _parse_flash_space(flash_output_str)
-            result['messages'].append(f"Flash space: {flash_info['free']} free of {flash_info['total']}")
+
+            if  platform_lower in ['cisco_ios', 'cisco_iosxe']:
+                # Check 1: using golden image file size determine if free space is enough or not
+                if golden_image and golden_image.get('image_size') and golden_image['image_name'] > 0:
+                    image_size = golden_image['image_size']
+                
+                # Check 2: Get all flash storages
+                show_file_systems = connection.send_command("show file systems")
+                show_file_systems_parsed = show_file_systems.genie_parse_output()
+                if show_file_systems_parsed:
+                    free_space = flash_free_space(show_file_systems_parsed, image_size)
+                    if not free_space:
+                        result['errors'].append('Insufficient flash space')
+                        return result
+                    result['messages'].append('Sufficient flash space')
+
+                # Check 3: if upgrade or downgrade
+                show_version = connection.send_command("show version")
+                show_version_parsed = show_version.genie_parse_output()
+                if show_version_parsed and show_version_parsed.get('version', {}).get('version', ''):
+                    current_version = show_version_parsed['version']['version']
+                    target_version = golden_image.get('version', '')
+                    if target_version:
+                        result = compare_version_loose(current_version, "==", target_version)
+                        if result:
+                            result['errors'].append('Device already running target version')
+                            return result
+                        
+                        result = compare_version_loose(current_version, "<", target_version)
+                        if result:
+                            result['messages'].append('Upgrade')
+                        else:
+                            result['errors'].append('Downgrade not allowed')
+                            return result
+
+                            
+                    
+                    
+                
+                # Check 3: Get flash space
+                flash_output = connection.send_command(commands.get('dir', 'dir'))
+                flash_output_str = str(flash_output.result)
+                flash_info = _parse_flash_space(flash_output_str)
+                result['messages'].append(f"Flash space: {flash_info['free']} free of {flash_info['total']}")
 
             # Check 3: Verify image size requirement
             if 'image_size' in golden_image:
