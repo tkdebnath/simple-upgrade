@@ -14,6 +14,18 @@ A simple Python package for network device firmware upgrades.
   - Post-upgrade verification
 - Support for Cisco IOS, IOS-XE, NX-OS, and more
 
+## Connection Modes
+
+The package supports three connection modes:
+
+| Mode | Description |
+|------|-------------|
+| `normal` | Real SSH connection with full upgrade execution |
+| `mock` | Simulate entire pipeline without real connections (testing/CI/CD) |
+| `dry_run` | Connect to device but only execute show commands; mock upgrade commands |
+
+See [USAGE.md](USAGE.md) for detailed documentation on all connection modes.
+
 ## Connection Management
 
 The package includes a `ConnectionManager` class that provides a unified interface
@@ -86,6 +98,50 @@ if result['success']:
 else:
     print("Upgrade failed:", result['errors'])
 ```
+
+### Mock Mode (Pipeline Simulation - No Real Connection)
+
+Simulate the upgrade pipeline without connecting to any device:
+
+```python
+manager = UpgradeManager(
+    host="192.168.1.1",
+    username="admin",
+    password="password",
+    device_type="cisco_xe",
+    connection_mode="mock",  # Mock mode
+    golden_image={"version": "17.9.4", "image_name": "flash:c9300.bin"},
+    file_server={"ip": "10.0.0.10", "protocol": "http", "base_path": "/tftpboot"}
+)
+
+result = manager.upgrade()
+print(f"Pipeline would succeed: {result['success']}")
+print(f"Manufacturer: {result['manufacturer']}")
+print(f"Commands that would execute: {result['commands_executed']}")
+```
+
+### Dry-Run Mode (Real Connection, Mock Upgrade Commands)
+
+Connect to the device but only execute show commands; mock upgrade commands:
+
+```python
+manager = UpgradeManager(
+    host="192.168.1.1",  # Real device
+    username="admin",
+    password="password",
+    device_type="cisco_xe",
+    connection_mode="dry_run",  # Dry-run mode
+    golden_image={"version": "17.9.4", "image_name": "flash:c9300.bin"},
+    file_server={"ip": "10.0.0.10", "protocol": "http", "base_path": "/tftpboot"}
+)
+
+result = manager.upgrade()
+print(f"Show commands executed: {result['show_commands']}")
+print(f"Upgrade commands mocked: {result['mocked_commands']}")
+print(f"Execution path: {result['execution_path']}")
+```
+
+See [USAGE.md](USAGE.md) for complete documentation on all connection modes.
 
 ## Usage
 
@@ -178,8 +234,34 @@ The upgrade process follows these stages:
 - Cisco IOS
 - Cisco IOS-XE
 - Cisco NX-OS
-- Juniper Junos (coming soon)
-- Arista EOS (coming soon)
+- Juniper Junos
+- Arista EOS
+- Palo Alto PAN-OS
+
+## Manufacturer-Specific Behavior
+
+The library automatically detects the manufacturer and uses manufacturer-specific commands:
+
+| Manufacturer | Readiness | Distribute | Activate |
+|--------------|-----------|------------|----------|
+| Cisco | Cisco readiness check | `copy http://... flash:/...` | `install add file ... activate commit` |
+| Juniper | Juniper readiness check | `request system software add ...` | `request system software add ... reboot` |
+| Arista | Arista readiness check | `copy http://... flash:/...` | `install image flash:/...` |
+| Palo Alto | PAN-OS readiness check | `download...` | `request system software...` |
+
+## Device Model Inference
+
+The library automatically infers the device model from `device_type`. No need to specify exact model:
+
+| Device Type | Inferred Model |
+|-------------|----------------|
+| `cisco_xe_c9300` | C9300 |
+| `cisco_xe_c9400` | C9400 |
+| `cisco_xe_c9500` | C9500 |
+| `juniper_junos_mx` | MX |
+| `arista_eos_7280` | 7280 |
+
+See [USAGE.md](USAGE.md) for more details.
 
 ## Requirements
 

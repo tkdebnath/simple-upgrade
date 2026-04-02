@@ -178,8 +178,18 @@ def find_device_profile(
             if series and profile.get('series') != series:
                 match = False
 
-            if model and profile.get('model') != model:
-                match = False
+            # Check if model matches - check both 'model' field and 'models' list
+            if model:
+                model_match = profile.get('model') == model
+                # Check if model is in the models list
+                models_list = profile.get('models', [])
+                if isinstance(models_list, list):
+                    model_match = model_match or model in models_list
+                elif isinstance(models_list, str):
+                    # Handle string case (single model in list format)
+                    model_match = model_match or models_list == model
+                if not model_match:
+                    match = False
 
             if match:
                 matching_profiles.append(profile)
@@ -301,3 +311,152 @@ def execute_command(profile: Dict[str, Any], command_type: str, **kwargs) -> str
 
     template = profile['commands'][command_type]
     return template.format(**kwargs)
+
+
+def match_model_to_profile(model: str, manufacturer: str) -> Optional[Dict[str, Any]]:
+    """
+    Match a device model to a device profile.
+
+    This function checks if a model matches a profile's 'model' field or
+    is in the profile's 'models' list (if defined).
+
+    Args:
+        model: Device model identifier (e.g., 'C9300', 'C9300L')
+        manufacturer: Manufacturer name (e.g., 'cisco', 'juniper', 'arista')
+
+    Returns:
+        Device profile dictionary if a match is found, None otherwise
+
+    Example:
+        # Match different C9300 variants to the same profile
+        profile = match_model_to_profile('C9300L', 'cisco')
+        # Returns the c9300.json profile since C9300L is in its models list
+    """
+    manufacturer_path = DEVICE_PROFILES_PATH / manufacturer.lower()
+    if not manufacturer_path.exists():
+        return None
+
+    for file in manufacturer_path.glob("*.json"):
+        try:
+            with open(file, 'r') as f:
+                profile = json.load(f)
+
+            # Check if model matches the profile's model field
+            if profile.get('model') == model:
+                return profile
+
+            # Check if model is in the models list
+            models_list = profile.get('models', [])
+            if isinstance(models_list, list):
+                if model in models_list:
+                    return profile
+            elif isinstance(models_list, str):
+                if models_list == model:
+                    return profile
+
+        except (json.JSONDecodeError, IOError) as e:
+            print(f"Error loading profile {file.name}: {e}")
+            continue
+
+    return None
+
+
+def validate_device_profiles(manufacturer: str) -> Dict[str, Any]:
+    """
+    Validate device profiles for a manufacturer to ensure no duplicate model+platform combinations.
+
+    This function checks that:
+    1. No model+platform combination is defined in more than one profile
+    2. No model appears in multiple profiles' 'models' lists (for the same platform)
+
+    A model can appear in different profiles if they have different platforms.
+    For example, "c9300" can be in both cisco_ios and cisco_iosxe profiles.
+
+    Args:
+        manufacturer: Manufacturer name (e.g., 'cisco', 'juniper', 'arista')
+
+    Returns:
+        Dictionary with:
+            - valid: bool - True if no duplicates found
+            - errors: list - List of duplicate model+platform errors
+            - warnings: list - List of warnings
+
+    Example:
+        >>> result = validate_device_profiles('cisco')
+        >>> if not result['valid']:
+        ...     print("Duplicates found:", result['errors'])
+    """
+    manufacturer_path = DEVICE_PROFILES_PATH / manufacturer.lower()
+    if not manufacturer_path.exists():
+        return {
+            'valid': True,
+            'errors': [],
+            'warnings': [],
+            'message': f"Manufacturer '{manufacturer}' not found"
+        }
+
+    # Track model+platform references: (model, platform) -> set of profile_files
+    model_platform_refs: Dict[tuple, set] = {}
+    # Track all models: (model, platform) -> profile_file
+    all_models: Dict[tuple, str] = {}
+
+    for file in manufacturer_path.glob("*.json"):
+        try:
+            with open(file, 'r') as f:
+                profile = json.load(f)
+
+            profile_name = file.stem
+            platform = profile.get('platform', '').lower()
+
+            # Get the primary model
+            primary_model = profile.get('model', '').lower()
+            if primary_model:
+                model_key = (primary_model, platform)
+                if model_key in all_models:
+                    # Duplicate model+platform combination
+                    if model_key not in model_platform_refs:
+                        model_platform_refs[model_key] = {all_models[model_key]}
+                    model_platform_refs[model_key].add(profile_name)
+                else:
+                    # First occurrence - store
+                    all_models[model_key] = profile_name
+
+            # Get models from the models list (if any)
+            models_list = profile.get('models', [])
+            if isinstance(models_list, str):
+                models_list = [models_list]
+
+            for model in models_list:
+                model_lower = model.lower()
+                model_key = (model_lower, platform)
+                if model_key in all_models:
+                    # Model+platform already exists in a profile
+                    if model_key not in model_platform_refs:
+                        model_platform_refs[model_key] = {all_models[model_key]}
+                    model_platform_refs[model_key].add(profile_name)
+                else:
+                    # First occurrence - store
+                    all_models[model_key] = profile_name
+
+        except (json.JSONDecodeError, IOError) as e:
+            print(f"Error loading profile {file.name}: {e}")
+            continue
+
+    # Convert sets to lists for output
+    model_platform_refs_list = {k: list(v) for k, v in model_platform_refs.items()}
+
+    # Check for duplicates
+    errors = []
+    for (model, platform), profiles in model_platform_refs_list.items():
+        if len(profiles) > 1:
+            unique_profiles = set(profiles)
+            if len(unique_profiles) > 1:
+                errors.append(f"Model '{model}' with platform '{platform}' is defined in multiple profiles: {', '.join(profiles)}")
+
+    return {
+        'valid': len(errors) == 0,
+        'errors': errors,
+        'warnings': [],
+        'total_profiles': len(list(manufacturer_path.glob("*.json"))),
+        'unique_model_platform_combinations': len(all_models)
+    }

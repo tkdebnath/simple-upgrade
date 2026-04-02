@@ -29,7 +29,9 @@ class Device:
         enable_mode: bool = False,
         enable_password: Optional[str] = None,
         device_type: Optional[str] = None,
-        connection_mode: str = "normal"  # normal, mock, dry_run
+        connection_mode: str = "normal",  # normal, mock, dry_run
+        scrapli_args: Optional[Dict[str, Any]] = None,
+        **kwargs
     ):
         """
         Initialize device connection parameters.
@@ -44,6 +46,8 @@ class Device:
             enable_password: Enable password if required
             device_type: Device type/platform (e.g., cisco_ios, cisco_xe, cisco_nxos)
                         Required for scrapli to determine the correct driver.
+            scrapli_args: Additional arguments to pass to scrapli Scrapli() constructor
+            **kwargs: Additional keyword arguments (e.g., auth_passphrase)
         """
         self.host = host
         self.username = username
@@ -54,6 +58,8 @@ class Device:
         self.enable_password = enable_password
         self.device_type = device_type
         self.connection_mode = connection_mode
+        self.scrapli_args = scrapli_args or {}
+        self.device_kwargs = kwargs
 
         # Device information - populated after connection
         self.manufacturer: str = ""
@@ -85,7 +91,6 @@ class Device:
                 port=self.port,
                 platform=self.device_type
             )
-            self._connection.open()
             self._connected = True
             return True
 
@@ -102,6 +107,7 @@ class Device:
                     "(e.g., 'cisco_ios', 'cisco_xe', 'cisco_nxos')."
                 )
 
+            # Build connection args
             conn_args = {
                 "host": self.host,
                 "port": self.port,
@@ -112,11 +118,12 @@ class Device:
                 "platform": self.device_type,
             }
 
+            # Apply custom scrapli args (e.g., for older devices with different SSH algorithms)
+            conn_args.update(self.scrapli_args)
+
             real_conn = Scrapli(**conn_args)
-            real_conn.open()
 
             self._connection = DryRunConnection(real_conn, self.device_type)
-            self._connection.open()
             self._connected = True
             return True
 
@@ -144,12 +151,7 @@ class Device:
             }
 
             self._connection = Scrapli(**conn_args)
-            self._connection.open()
             self._connected = True
-
-            # Enter enable mode if requested
-            if self.enable_mode and self.enable_password:
-                self._enter_enable_mode()
 
             return True
 
@@ -275,11 +277,11 @@ class Device:
             self.manufacturer = 'Unknown'
 
         # Parse model from version output
+        # First try to match the model name after "Catalyst" or other model indicators
         model_patterns = [
-            r'Cisco IOS Software, [^\s]+\s+(\S+)',
-            r'Cisco IOS-XE Software, (\S+)',
-            r'Cisco NX-OS Software, (\S+)',
-            r'Platform:\s*(\S+)',
+            r'Catalyst\s+(\S+)',           # For Catalyst switches like 9300, 9400
+            r'Platform:\s*(\S+)',          # Platform line
+            r'Product\s+Name:\s*(\S+)',    # Some devices have Product Name
         ]
 
         for pattern in model_patterns:
@@ -287,6 +289,17 @@ class Device:
             if match:
                 self.model = match.group(1)
                 break
+
+        # Fallback: try to find model in inventory
+        if not self.model and inventory_output:
+            model_patterns_inv = [
+                r'PID:\s*(\S+)',
+            ]
+            for pattern in model_patterns_inv:
+                match = re.search(pattern, inventory_output)
+                if match:
+                    self.model = match.group(1)
+                    break
 
         # Fallback: try to find model in inventory
         if not self.model and inventory_output:

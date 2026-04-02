@@ -39,6 +39,8 @@ from .device_profiles import (
     find_device_profile,
     execute_upgrade_command,
     execute_command,
+    match_model_to_profile,
+    validate_device_profiles,
     DEVICE_PROFILES_PATH
 )
 from .manufacturers import cisco, juniper, arista

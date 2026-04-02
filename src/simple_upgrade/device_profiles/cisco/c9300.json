@@ -1,6 +1,7 @@
 {
   "manufacturer": "Cisco",
-  "model": "C9300",
+  "model": "c9300",
+  "models": ["C9300", "C9300L", "C9300X", "C9300UX"],
   "mode": "switch",
   "series": "Catalyst 9300",
   "platform": "cisco_iosxe",

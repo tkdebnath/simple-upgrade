@@ -41,7 +41,8 @@ def verify_version(connection, platform: str, commands: Dict[str, str], golden_i
         result['verified'] = True
         result['message'] = f'Version verified: {current_version}'
     else:
-        result['message'] = f'Version mismatch. Current: {current_version}, Target: {result['target_version']}'
+        target_ver = result['target_version']
+        result['message'] = f'Version mismatch. Current: {current_version}, Target: {target_ver}'
 
     return result
 

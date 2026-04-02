@@ -65,7 +65,9 @@ class ConnectionManager:
         secret: Optional[str] = None,
         auth_strict_key: bool = False,
         transport: str = "ssh",
-        connection_mode: str = "normal"  # normal, mock, dry_run
+        connection_mode: str = "normal",  # normal, mock, dry_run
+        scrapli_args: Optional[Dict[str, Any]] = None,
+        **kwargs
     ):
         """
         Initialize the ConnectionManager.
@@ -84,6 +86,9 @@ class ConnectionManager:
             secret: Secret/enable password for privileged mode (optional)
             auth_strict_key: Strict SSH key checking (default: False)
             transport: Transport type (default: "ssh")
+            scrapli_args: Additional arguments to pass to scrapli Scrapli() constructor
+                         (e.g., {'auth_passphrase': 'password', 'transport_options': {...}})
+            **kwargs: Additional keyword arguments
         """
         self.host = host
         self.username = username
@@ -98,6 +103,8 @@ class ConnectionManager:
         self.auth_strict_key = auth_strict_key
         self.transport = transport
         self.connection_mode = connection_mode
+        self.scrapli_args = scrapli_args or {}
+        self.device_kwargs = kwargs
 
         # Connection objects
         self._scrapli_conn = None
@@ -279,6 +286,7 @@ class ConnectionManager:
             # Get platform from centralized mapping
             scrapli_platform = self._get_library_platform('scrapli')
 
+            # Build base connection args
             conn_args = {
                 "host": self.host,
                 "port": self.port,
@@ -289,13 +297,11 @@ class ConnectionManager:
                 "platform": scrapli_platform,
             }
 
-            conn = Scrapli(**conn_args)
-            conn.open()
+            # Apply any additional scrapli arguments (e.g., for older devices)
+            if self.scrapli_args:
+                conn_args.update(self.scrapli_args)
 
-            # Enter enable mode if requested
-            if self.enable_mode and self.enable_password:
-                conn.send_command("enable")
-                conn.send_command(self.enable_password)
+            conn = Scrapli(**conn_args)
 
             return conn
 
@@ -326,10 +332,6 @@ class ConnectionManager:
             }
 
             conn = ConnectHandler(**conn_args)
-
-            # Enter enable mode if requested
-            if self.enable_mode and self.enable_password:
-                conn.enable()
 
             return conn
 
@@ -362,10 +364,6 @@ class ConnectionManager:
             }
 
             conn = connections.connect(**conn_args)
-
-            # Enter enable mode if requested
-            if self.enable_mode and self.enable_password:
-                conn.enable(self.enable_password)
 
             return conn
 
