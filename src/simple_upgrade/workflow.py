@@ -380,9 +380,15 @@ class UpgradeWorkflow:
             # Get platform
             platform = self.device.platform or 'cisco_iosxe'
 
+            # Get tacacs_source_interface from device if not provided in file_server
+            source_interface = self.file_server.get('source_interface') or self.golden_image.get('source_interface')
+            if not source_interface:
+                # Check if device has tacacs_source_interface from sync
+                source_interface = getattr(self.device, 'tacacs_source_interface', None)
+
             # Use manufacturer-specific distribution
             from .manufacturers import execute_stage
-            result = execute_stage('cisco', 'distribution', device_conn, platform, self.file_server, self.golden_image)
+            result = execute_stage('cisco', 'distribution', device_conn, platform, self.file_server, self.golden_image, source_interface)
 
             if result:
                 if result.get('success'):

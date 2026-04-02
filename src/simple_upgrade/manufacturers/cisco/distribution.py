@@ -8,7 +8,7 @@ Supports: HTTP, HTTPS, TFTP, FTP, SCP protocols.
 from typing import Dict, Any
 
 
-def distribute_image(connection, platform: str, file_server: Dict[str, Any], golden_image: Dict[str, Any]) -> Dict[str, Any]:
+def distribute_image(connection, platform: str, file_server: Dict[str, Any], golden_image: Dict[str, Any], source_interface: str = None) -> Dict[str, Any]:
     """
     Distribute firmware image to Cisco device.
 
@@ -40,7 +40,7 @@ def distribute_image(connection, platform: str, file_server: Dict[str, Any], gol
     image_name = golden_image.get('image_name', '')
     server_ip = file_server.get('ip', '')
     base_path = file_server.get('base_path', '')
-    source_interface = file_server.get('source_interface') or golden_image.get('source_interface')
+    # source_interface is now passed as a parameter from workflow
 
     if not image_name or not server_ip:
         result['message'] = 'Missing image name or file server information'

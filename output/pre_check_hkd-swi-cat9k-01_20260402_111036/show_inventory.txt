@@ -1,0 +1,5 @@
+NAME: "Switch 1", DESCR: "Catalyst 9000 UADP 8 Port Virtual Switch"
+PID: C9KV-UADP-8P      , VID: V01  , SN: 9O2R5NBG8Y1
+
+NAME: "Switch 1", DESCR: "Catalyst 9000 UADP 8 Port Virtual Switch"
+PID: C9KV-UADP-8P      , VID: V01  , SN: 9O2R5NBG8Y1
