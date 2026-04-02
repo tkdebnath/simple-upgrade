@@ -425,6 +425,8 @@ class UpgradePackage:
             source_interface = self.file_server.get('source_interface')
             if not source_interface:
                 source_interface = self.device_info.get('tacacs_source_interface')
+            print(f"DEBUG: source_interface = {source_interface}")
+            print(f"DEBUG: device_info = {self.device_info}")
 
             # Execute distribution using manufacturer module
             result = execute_stage(
