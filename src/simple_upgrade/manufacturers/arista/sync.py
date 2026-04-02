@@ -1,10 +1,35 @@
 """
 Arista EOS sync module - Fetches device information.
 
-Validates platform is Arista-specific before executing commands.
+Validates platform and channel before executing commands.
 """
 
 from typing import Dict, Any
+
+
+def _validate_channel(connection) -> None:
+    """
+    Validate that the connection is a scrapli connection.
+
+    Args:
+        connection: Connection object to validate
+
+    Raises:
+        ValueError: If connection is not a scrapli connection
+    """
+    # Check if connection has send_command method
+    if not hasattr(connection, 'send_command'):
+        raise ValueError(
+            "Invalid connection object. Expected a connection with send_command method."
+        )
+
+    # Check module to identify connection type
+    module = getattr(connection, '__module__', '')
+    if 'scrapli' not in module:
+        raise ValueError(
+            f"Invalid connection type: {module}. "
+            f"Expected scrapli connection."
+        )
 
 
 def fetch_info(connection, platform: str, commands: Dict[str, str]) -> Dict[str, Any]:
@@ -20,8 +45,11 @@ def fetch_info(connection, platform: str, commands: Dict[str, str]) -> Dict[str,
         Dictionary with device information
 
     Raises:
-        ValueError: If platform is not an Arista platform
+        ValueError: If platform is not an Arista platform or connection is not scrapli
     """
+    # Validate channel
+    _validate_channel(connection)
+
     # Validate platform is Arista
     platform_lower = platform.lower().replace('-', '_')
     valid_arista_platforms = ['arista_eos', 'arista', 'eos']
