@@ -218,6 +218,9 @@ class UpgradePackage:
         """
         Synchronize device information - fetch current version, model, etc.
 
+        In mock mode, returns simulated device info without a real connection.
+        In dry-run mode, connects to the real device via scrapli.
+
         Updates:
             - device_info: Dictionary with device information
             - stage_results: sync result
@@ -225,6 +228,21 @@ class UpgradePackage:
         Returns:
             Self for method chaining
         """
+        # ── Mock short-circuit ───────────────────────────────────────────
+        if self.connection_mode == 'mock':
+            from .mocks import MockSyncManager
+            platform = self.device_type or 'cisco_iosxe'
+            sync_mgr = MockSyncManager(platform=platform)
+            self.device_info = sync_mgr.fetch_info()
+            if not self.device_type:
+                self.device_type = platform
+            self.stage_results['sync'] = {
+                'success': True,
+                'message': '[MOCK] Device synchronized (simulated)',
+                'device_info': self.device_info
+            }
+            return self
+
         if not self._connect():
             self.stage_results['sync'] = {'success': False, 'message': 'Failed to connect'}
             self.failed_stage = 'sync'
@@ -401,7 +419,9 @@ class UpgradePackage:
         """
         Distribute firmware image to device.
 
-        Uses unicon for file transfer (HTTP/HTTPS/TFTP/FTP/SCP).
+        Uses unicon for file transfer (HTTP/HTTPS).
+        In mock/dry-run mode, no real connection is made — returns the
+        command that would be executed.
 
         Updates:
             - stage_results: distribute result
@@ -409,6 +429,22 @@ class UpgradePackage:
         Returns:
             Self for method chaining
         """
+        # ── Mock / Dry-run short-circuit ─────────────────────────────────
+        if self.connection_mode in ('mock', 'dry_run'):
+            image_name = self.golden_image.get('image_name', '').replace('flash:/', '').replace('flash:', '')
+            protocol  = self.file_server.get('protocol', 'http')
+            server_ip = self.file_server.get('ip', '<server>')
+            base_path = self.file_server.get('base_path', '').strip('/')
+            cmd = f"copy {protocol}://{server_ip}/{base_path}/{image_name} flash:{image_name}"
+            mode_label = 'MOCK' if self.connection_mode == 'mock' else 'DRY-RUN'
+            self.stage_results['distribute'] = {
+                'success': True,
+                'message': f'[{mode_label}] Would execute: {cmd}',
+                'command': cmd,
+                'skipped': True,
+            }
+            return self
+
         try:
             # Get connection manager for unicon
             cm = self._get_connection_manager()
@@ -458,6 +494,9 @@ class UpgradePackage:
         """
         Activate the new firmware on the device using profile-specific commands.
 
+        In mock/dry-run mode, no real connection is made — returns the
+        install command that would be executed.
+
         Steps:
         1. Get hardware model from device
         2. Match model to device profile
@@ -471,6 +510,19 @@ class UpgradePackage:
         Returns:
             Self for method chaining
         """
+        # ── Mock / Dry-run short-circuit ─────────────────────────────────
+        if self.connection_mode in ('mock', 'dry_run'):
+            image_name = self.golden_image.get('image_name', '').replace('flash:/', '').replace('flash:', '')
+            cmd = f"install add file flash:{image_name} activate commit"
+            mode_label = 'MOCK' if self.connection_mode == 'mock' else 'DRY-RUN'
+            self.stage_results['activate'] = {
+                'success': True,
+                'message': f'[{mode_label}] Would execute: {cmd}',
+                'command': cmd,
+                'skipped': True,
+            }
+            return self
+
         try:
             # Get connection manager for unicon
             cm = self._get_connection_manager()
