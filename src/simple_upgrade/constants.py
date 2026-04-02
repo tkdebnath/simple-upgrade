@@ -124,14 +124,17 @@ DEVICE_COMMANDS = {
     'cisco_ios': {
         'version': 'show version',
         'inventory': 'show inventory',
+        'show_tacacs': 'show run | include tacacs',
     },
     'cisco_iosxe': {
         'version': 'show version',
         'inventory': 'show inventory',
+        'show_tacacs': 'show run | include tacacs',
     },
     'cisco_nxos': {
         'version': 'show version',
         'inventory': 'show inventory',
+        'show_tacacs': 'show run | include tacacs',
     },
 }
 

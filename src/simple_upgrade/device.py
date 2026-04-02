@@ -68,6 +68,7 @@ class Device:
         self.hostname: str = ""
         self.serial_number: str = ""
         self.platform: str = ""
+        self.tacacs_source_interface: str = ""
 
         # Connection state
         self._connection = None
@@ -265,6 +266,7 @@ class Device:
             'hostname': 'show run | include hostname',
             'version': 'show version',
             'inventory': 'show inventory',
+            'tacacs': 'show run | include tacacs',
         }
 
         results = {}
@@ -285,6 +287,7 @@ class Device:
             'hostname': self.hostname,
             'serial_number': self.serial_number,
             'platform': self.platform,
+            'tacacs_source_interface': self.tacacs_source_interface,
         }
 
     def _parse_device_info(self, results: Dict[str, str]):
@@ -376,6 +379,12 @@ class Device:
         platform_match = re.search(r'Processor type is\s+(\S+)', version_output)
         if platform_match:
             self.platform = platform_match.group(1)
+
+        # Parse tacacs source interface
+        tacacs_output = results.get('tacacs', '')
+        source_interface_match = re.search(r'tacacs\s+source-interface\s+(\S+)', tacacs_output)
+        if source_interface_match:
+            self.tacacs_source_interface = source_interface_match.group(1)
 
     def check_connection(self) -> bool:
         """Check if device is still reachable."""

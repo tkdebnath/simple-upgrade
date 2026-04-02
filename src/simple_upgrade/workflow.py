@@ -701,10 +701,21 @@ class UpgradeManager:
             'max_retries': self.device_kwargs.get('max_retries', 3),
             'connection_manager': connection_manager,
         }
+
+        # Update file_server with tacacs source interface from device if not already set
+        file_server = self.file_server.copy()
+        if not file_server.get('source_interface'):
+            # Try to get tacacs_source_interface from device or device_info
+            tacacs_interface = getattr(self.device, 'tacacs_source_interface', None)
+            if tacacs_interface:
+                file_server['source_interface'] = tacacs_interface
+            elif self.device_kwargs.get('tacacs_source_interface'):
+                file_server['source_interface'] = self.device_kwargs.get('tacacs_source_interface')
+
         self.workflow = UpgradeWorkflow(
             device=self.device,
             golden_image=self.golden_image,
-            file_server=self.file_server,
+            file_server=file_server,
             connection_mode=self.connection_mode,
             **workflow_kwargs
         )

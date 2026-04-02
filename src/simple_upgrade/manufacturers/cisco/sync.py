@@ -105,6 +105,7 @@ def fetch_info(connection, channel: str, platform: str, commands: Dict[str, str]
         'config_register': '',
         'flash_size': '',
         'memory_size': '',
+        'tacacs_source_interface': '',
     }
 
     # Fetch version
@@ -147,6 +148,17 @@ def fetch_info(connection, channel: str, platform: str, commands: Dict[str, str]
             info['uptime'] = parsed_version[0].get('uptime', '')
             info['boot_method'] = parsed_version[0].get('running_image', '')
             info['config_register'] = parsed_version[0].get('config_register', '')
+
+            # Fetch tacacs source interface
+            try:
+                tacacs_output = connection.send_command(commands.get('show_tacacs', 'show run | include tacacs'))
+                # Parse source interface from tacacs config
+                source_interface_match = re.search(r'tacacs\s+source-interface\s+(\S+)', tacacs_output)
+                if source_interface_match:
+                    info['tacacs_source_interface'] = source_interface_match.group(1)
+            except Exception:
+                # Tacacs not configured or command failed
+                pass
 
         elif platform_lower == 'cisco_nxos':
             # not yet implemented
