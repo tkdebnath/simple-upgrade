@@ -150,7 +150,12 @@ class Device:
                 "platform": self.device_type,
             }
 
+            # Apply custom scrapli args (e.g., for older devices with different SSH algorithms)
+            if self.scrapli_args:
+                conn_args.update(self.scrapli_args)
+
             self._connection = Scrapli(**conn_args)
+            self._connection.open()
             self._connected = True
 
             return True
@@ -182,8 +187,17 @@ class Device:
         Returns:
             Command output as string
         """
-        if not self._connected or not self._connection:
+        if not self._connection:
             raise DeviceConnectionError("Not connected to device")
+
+        # If not connected but connection exists, try to open it
+        # This handles context manager usage
+        if not self._connected:
+            try:
+                self._connection.open()
+                self._connected = True
+            except Exception as e:
+                raise DeviceConnectionError(f"Failed to open connection: {e}")
 
         try:
             result = self._connection.send_command(command)
@@ -219,6 +233,22 @@ class Device:
                 pass
             self._connected = False
             self._connection = None
+
+    def __enter__(self):
+        """Enter context manager - open the connection."""
+        # If no connection, create one first
+        if not self._connection:
+            self.connect()
+        # If connection exists but not connected, open it
+        if self._connection and not self._connected:
+            self._connection.open()
+            self._connected = True
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        """Exit context manager - close the connection."""
+        self.disconnect()
+        return False
 
     def gather_info(self) -> Dict[str, Any]:
         """

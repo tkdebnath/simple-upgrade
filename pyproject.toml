@@ -5,13 +5,12 @@ description = "A simple Python package for network device firmware upgrades supp
 readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
-    "scrapli[textfsm]>=2026.2.20",
+    "scrapli[textfsm,ssh2]>=2026.2.20",
     "netmiko>=4.6.0",
     "pyats>=26.2",
     "genie>=26.2",
     "rich>=14.3.3",
     "pyyaml>=6.0.3",
-    "ssh2-python>=1.2.0.post1",
 ]
 
 [project.optional-dependencies]
