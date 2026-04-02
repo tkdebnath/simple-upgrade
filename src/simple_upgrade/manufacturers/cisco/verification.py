@@ -33,7 +33,8 @@ def verify_version(connection, platform: str, commands: Dict[str, str], golden_i
 
     # Fetch current version
     version_output = connection.send_command(commands.get('show_version', 'show version'))
-    current_version = _parse_version(version_output, platform)
+    version_output_str = str(version_output.result)
+    current_version = _parse_version(version_output_str, platform)
     result['current_version'] = current_version
 
     # Compare with target

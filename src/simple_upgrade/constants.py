@@ -11,12 +11,22 @@ PLATFORM_MAPPINGS = {
         'netmiko': 'cisco_ios',
         'unicon': 'ios',
     },
+    'cisco_ios': {
+        'scrapli': 'cisco_iosxe',
+        'netmiko': 'cisco_ios',
+        'unicon': 'ios',
+    },
     'ios': {
         'scrapli': 'cisco_iosxe',
         'netmiko': 'cisco_ios',
         'unicon': 'ios',
     },
     'cisco-ios-xe': {
+        'scrapli': 'cisco_iosxe',
+        'netmiko': 'cisco_ios',
+        'unicon': 'iosxe',
+    },
+    'cisco_xe': {
         'scrapli': 'cisco_iosxe',
         'netmiko': 'cisco_ios',
         'unicon': 'iosxe',
@@ -32,6 +42,11 @@ PLATFORM_MAPPINGS = {
         'unicon': 'iosxe',
     },
     'cisco-nx-os': {
+        'scrapli': 'cisco_nxos',
+        'netmiko': 'cisco_nxos',
+        'unicon': 'nxos',
+    },
+    'cisco_nxos': {
         'scrapli': 'cisco_nxos',
         'netmiko': 'cisco_nxos',
         'unicon': 'nxos',
@@ -114,13 +129,24 @@ def get_platform_for_library(platform: str, library: str) -> str:
 DEVICE_COMMANDS = {
     'cisco_ios': {
         'version': 'show version',
+        'show_version': 'show version',
         'inventory': 'show inventory',
         'show_tacacs': 'show run | include tacacs',
+        'dir': 'dir',
     },
     'cisco_iosxe': {
         'version': 'show version',
+        'show_version': 'show version',
         'inventory': 'show inventory',
         'show_tacacs': 'show run | include tacacs',
+        'dir': 'dir',
+    },
+    'cisco_xe': {
+        'version': 'show version',
+        'show_version': 'show version',
+        'inventory': 'show inventory',
+        'show_tacacs': 'show run | include tacacs',
+        'dir': 'dir',
     },
     # NX-OS disabled
 }

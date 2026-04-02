@@ -94,8 +94,9 @@ class Checks:
                 password=self.password,
                 device_type=self.device_type,
                 port=self.port,
-                secret=self.secret,
-                timeout=self.timeout,
+                enable_password=self.secret or self.password,
+                enable_mode=bool(self.secret),
+                connection_timeout=self.timeout,
             )
 
             self.connection = self.cm.get_connection('scrapli')
@@ -347,8 +348,9 @@ class Checks:
             ]
 
             version = 'Unknown'
+            output_str = str(output.result)
             for pattern in patterns:
-                match = re.search(pattern, output)
+                match = re.search(pattern, output_str)
                 if match:
                     version = match.group(1)
                     break
@@ -375,6 +377,7 @@ class Checks:
 
             cmd = commands.get(platform, 'dir')
             output = self.connection.send_command(cmd)
+            output_str = str(output.result)
 
             # Parse free space
             import re
@@ -385,7 +388,7 @@ class Checks:
 
             free_bytes = 0
             for pattern in patterns:
-                match = re.search(pattern, output, re.IGNORECASE)
+                match = re.search(pattern, output_str, re.IGNORECASE)
                 if match:
                     free_bytes = int(match.group(1))
                     break
@@ -405,10 +408,11 @@ class Checks:
         """Verify running configuration is intact."""
         try:
             output = self.connection.send_command("show running-config")
+            output_str = str(output.result)
 
             # Check for configuration errors
             error_patterns = ['error', 'invalid', 'failed']
-            has_errors = any(err in output.lower() for err in error_patterns)
+            has_errors = any(err in output_str.lower() for err in error_patterns)
 
             return {
                 'status': not has_errors,
@@ -431,13 +435,14 @@ class Checks:
 
             # Get running config
             config = self.connection.send_command("show running-config")
+            config_str = str(config.result)
 
             # In a real implementation, this would save to a file server
             # For now, just verify we can retrieve the config
             return {
-                'status': len(config) > 0,
+                'status': len(config_str) > 0,
                 'backup_file': backup_file,
-                'message': f'Configuration retrieved (size: {len(config)} bytes)'
+                'message': f'Configuration retrieved (size: {len(config_str)} bytes)'
             }
         except Exception as e:
             return {
@@ -456,10 +461,11 @@ class Checks:
 
             cmd = commands.get(platform, 'show inventory')
             output = self.connection.send_command(cmd)
+            output_str = str(output.result)
 
             # Check for hardware errors
             error_keywords = ['error', 'failed', 'notOK', 'critical']
-            has_errors = any(err in output.lower() for err in error_keywords)
+            has_errors = any(err in output_str.lower() for err in error_keywords)
 
             # Check for specific issues
             issue_patterns = [
@@ -467,7 +473,7 @@ class Checks:
                 r'Absent',
                 r'Failed',
             ]
-            has_issues = any(re.search(pattern, output, re.IGNORECASE) for pattern in issue_patterns)
+            has_issues = any(re.search(pattern, output_str, re.IGNORECASE) for pattern in issue_patterns)
 
             return {
                 'status': not has_errors and not has_issues,
@@ -492,10 +498,11 @@ class Checks:
 
             cmd = commands.get(platform, 'show license')
             output = self.connection.send_command(cmd)
+            output_str = str(output.result)
 
             # Check for license errors
             error_patterns = ['error', 'invalid', 'expired', 'failed']
-            has_errors = any(err in output.lower() for err in error_patterns)
+            has_errors = any(err in output_str.lower() for err in error_patterns)
 
             return {
                 'status': not has_errors,
@@ -514,9 +521,10 @@ class Checks:
             # Cisco specific command
             if 'cisco' in platform.lower():
                 output = self.connection.send_command("verify /md5 flash:/*/image.bin")
+                output_str = str(output.result)
                 return {
-                    'status': 'OK' in output.upper(),
-                    'message': 'Image integrity verified' if 'OK' in output.upper() else 'Image integrity check pending'
+                    'status': 'OK' in output_str.upper(),
+                    'message': 'Image integrity verified' if 'OK' in output_str.upper() else 'Image integrity check pending'
                 }
             else:
                 # Other platforms - return placeholder
@@ -534,6 +542,7 @@ class Checks:
         """Check device uptime."""
         try:
             output = self.connection.send_command("show version")
+            output_str = str(output.result)
 
             import re
             patterns = [
@@ -543,7 +552,7 @@ class Checks:
 
             uptime = 'Unknown'
             for pattern in patterns:
-                match = re.search(pattern, output, re.IGNORECASE)
+                match = re.search(pattern, output_str, re.IGNORECASE)
                 if match:
                     uptime = match.group(1).strip()
                     break
@@ -567,9 +576,10 @@ class Checks:
         """Check if services are running properly."""
         try:
             output = self.connection.send_command("show version")
+            output_str = str(output.result)
 
             # Check for service status indicators
-            service_ok = 'running' in output.lower() or 'active' in output.lower()
+            service_ok = 'running' in output_str.lower() or 'active' in output_str.lower()
 
             return {
                 'status': service_ok,

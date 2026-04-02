@@ -304,7 +304,7 @@ class UpgradePackage:
             commands = DEVICE_COMMANDS.get(platform.lower(), DEVICE_COMMANDS['cisco_iosxe'])
 
             # Execute readiness check
-            result = execute_stage('cisco', 'readiness', conn, platform, commands, self.golden_image)
+            result = execute_stage('cisco', 'readiness', conn, 'scrapli', platform, commands, self.golden_image)
 
             if result and result.get('ready'):
                 # Update device_info with version from readiness check

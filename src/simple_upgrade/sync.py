@@ -185,7 +185,7 @@ def sync_device(
         host=host,
         username=username,
         password=password,
-        device_type=None,
+        device_type=platform,
         port=port,
     )
 

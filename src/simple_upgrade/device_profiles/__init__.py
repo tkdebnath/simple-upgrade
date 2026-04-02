@@ -341,17 +341,17 @@ def match_model_to_profile(model: str, manufacturer: str) -> Optional[Dict[str, 
             with open(file, 'r') as f:
                 profile = json.load(f)
 
-            # Check if model matches the profile's model field
-            if profile.get('model') == model:
+            # Check if model matches the profile's model field (case-insensitive)
+            if profile.get('model', '').lower() == model.lower():
                 return profile
 
-            # Check if model is in the models list
+            # Check if model is in the models list (case-insensitive)
             models_list = profile.get('models', [])
             if isinstance(models_list, list):
-                if model in models_list:
+                if model.lower() in [m.lower() for m in models_list]:
                     return profile
             elif isinstance(models_list, str):
-                if models_list == model:
+                if models_list.lower() == model.lower():
                     return profile
 
         except (json.JSONDecodeError, IOError) as e:

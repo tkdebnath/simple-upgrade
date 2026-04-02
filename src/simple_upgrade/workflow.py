@@ -195,8 +195,8 @@ class UpgradeWorkflow:
         }
 
         # Execute stages in order
-        # Note: Only using scrapli-based stages
-        # unicon-based stages (distribute, activate) are handled separately
+        # Note: distribute and activate are handled by UpgradePackage (uses unicon).
+        # UpgradeWorkflow only handles scrapli-based stages.
         stages_order = [
             'readiness',
             'pre_check',
@@ -211,8 +211,9 @@ class UpgradeWorkflow:
                 # Continue to next stage but mark overall as failed
                 pass
 
-        # Check if all stages succeeded
-        all_success = all(stage.success for stage in self.stages.values())
+        # Check if all executed stages succeeded (only check stages that were run)
+        executed_stages = [s for s in self.stages.values() if s.start_time is not None]
+        all_success = all(stage.success for stage in executed_stages) if executed_stages else False
 
         result['success'] = all_success
         result['stages'] = {
@@ -372,53 +373,7 @@ class UpgradeWorkflow:
 
         return False
 
-    def _run_post_checks(self, **kwargs) -> bool:
-        """
-        Run post-upgrade validation checks using scrapli.
-        Executes show commands and stores output in post_check folder.
-        """
-        try:
-            import os
-            import time
-            from datetime import datetime
-
-            # Get device info for folder name
-            hostname = self.device.hostname or self.device.host
-            folder_name = f"post_check_{hostname}_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
-            output_dir = os.path.join("output", folder_name)
-            os.makedirs(output_dir, exist_ok=True)
-
-            # Show commands to run
-            commands = {
-                'show_ip_interface_brief': 'show ip interface brief',
-                'show_version': 'show version',
-                'show_inventory': 'show inventory',
-                'show_interface_description': 'show interface description',
-                'show_cdp_neighbors': 'show cdp neighbors',
-                'show_ip_route_summary': 'show ip route summary',
-                'show_ip_bgp_summary': 'show ip bgp summary',
-                'show_ip_ospf_neighbor': 'show ip ospf neighbor',
-                'show_standby_brief': 'show standby summary',
-                'show_logging': 'show logging',
-                'show_processes_cpu': 'show processes cpu sorted | exclude 0.00',
-                'show_environment': 'show environment',
-                'show_mac_address_table': 'show mac address-table',
-                'show_interfaces_status': 'show interfaces status',
-            }
-
-            for cmd_name, cmd in commands.items():
-                try:
-                    output = self.device.send_command(cmd)
-                    output_file = os.path.join(output_dir, f"{cmd_name}.txt")
-                    with open(output_file, 'w') as f:
-                        f.write(output)
-                except Exception as e:
-                    self.errors.append(f"Failed to execute {cmd_name}: {e}")
-
-            return True
-        except Exception as e:
-            self.errors.append(f"Post-check failed: {e}")
-            return False
+    # Note: _run_post_checks is defined above (delegates to _run_checks('post'))
 
     def _verify_version(self, **kwargs) -> bool:
         """

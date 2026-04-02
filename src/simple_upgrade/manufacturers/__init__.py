@@ -39,6 +39,16 @@ def get_manufacturer_module(manufacturer: str, stage: str) -> Optional[Any]:
         return None
 
 
+# Map stage names to actual function names in manufacturer modules
+STAGE_FUNCTION_MAP = {
+    'sync': 'fetch_info',
+    'readiness': 'check_readiness',
+    'distribution': 'distribute_image',
+    'activation': 'activate_image',
+    'verification': 'verify_version',
+}
+
+
 def execute_stage(manufacturer: str, stage: str, *args, **kwargs) -> Any:
     """
     Execute a stage for a manufacturer using manufacturer-specific logic.
@@ -54,8 +64,8 @@ def execute_stage(manufacturer: str, stage: str, *args, **kwargs) -> Any:
     """
     module = get_manufacturer_module(manufacturer, stage)
     if module:
-        # Try to find a function that matches the stage name or a generic execute function
-        func_name = stage if stage != 'sync' else 'fetch_info'
+        # Look up the correct function name from the map, fall back to stage name
+        func_name = STAGE_FUNCTION_MAP.get(stage, stage)
         if hasattr(module, func_name):
             func = getattr(module, func_name)
             # For sync function, pass channel as second positional argument (after connection)

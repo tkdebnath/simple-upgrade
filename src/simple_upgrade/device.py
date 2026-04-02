@@ -335,16 +335,6 @@ class Device:
                     self.model = match.group(1)
                     break
 
-        # Fallback: try to find model in inventory
-        if not self.model and inventory_output:
-            model_patterns_inv = [
-                r'PID:\s*(\S+)',
-            ]
-            for pattern in model_patterns_inv:
-                match = re.search(pattern, inventory_output)
-                if match:
-                    self.model = match.group(1)
-                    break
 
         # Parse version
         version_patterns = [

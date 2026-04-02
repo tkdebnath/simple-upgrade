@@ -153,7 +153,8 @@ def fetch_info(connection, channel: str, platform: str, commands: Dict[str, str]
             try:
                 tacacs_output = connection.send_command(commands.get('show_tacacs', 'show run | include tacacs'))
                 # Parse source interface from tacacs config
-                source_interface_match = re.search(r'tacacs\s+source-interface\s+(\S+)', tacacs_output)
+                tacacs_output_str = str(tacacs_output.result)
+                source_interface_match = re.search(r'tacacs\s+source-interface\s+(\S+)', tacacs_output_str)
                 if source_interface_match:
                     info['tacacs_source_interface'] = source_interface_match.group(1)
             except Exception:

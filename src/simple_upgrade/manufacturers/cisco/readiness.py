@@ -239,7 +239,7 @@ def _run_readiness_checks(connection, platform_lower, golden_image, commands, re
     # Check 7: Check for any active sessions or locks
     try:
         config_output = connection.send_command("show configuration lock")
-        if "locked" in config_output.lower():
+        if "locked" in str(config_output.result).lower():
             result['errors'].append('Configuration database is locked')
             return
         result['messages'].append('No configuration locks detected')

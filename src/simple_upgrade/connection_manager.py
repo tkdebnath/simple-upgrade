@@ -334,12 +334,18 @@ class ConnectionManager:
                 except Exception:
                     pass
                 self._scrapli_conn = None
+                if self._active_channel == 'scrapli':
+                    self._active_channel = None
+                    self.channel = None
             elif channel == 'unicon' and self._unicon_conn:
                 try:
                     self._unicon_conn.disconnect()
                 except Exception:
                     pass
                 self._unicon_conn = None
+                if self._active_channel == 'unicon':
+                    self._active_channel = None
+                    self.channel = None
 
         else:
             # Disconnect all channels
@@ -356,8 +362,8 @@ class ConnectionManager:
                     pass
                 self._unicon_conn = None
 
-        self._active_channel = None
-        self.channel = None
+            self._active_channel = None
+            self.channel = None
 
     def is_connected(self, channel: Optional[str] = None) -> bool:
         """
