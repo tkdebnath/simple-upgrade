@@ -3,11 +3,18 @@ name = "simple-upgrade"
 version = "0.1.0"
 description = "A simple Python package for network device firmware upgrades supporting Cisco, Juniper, Arista, and Palo Alto."
 readme = "README.md"
-requires-python = ">=3.10"
+requires-python = ">=3.11"
 dependencies = [
-    "scrapli>=2023.1.30",
-    "netmiko>=4.1.2",
-    "unicon>=22.10",
-    "genie>=22.10",
-    "pyats>=22.10"
+    "scrapli>=2024.1.1",
+    "netmiko>=4.3.0",
+    "pyats>=24.1.1",
+    "genie>=24.1.1",
+    "rich>=13.7.0",
+    "pyyaml>=6.0.1",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.4.0",
+    "pytest-asyncio>=0.21.0",
 ]
