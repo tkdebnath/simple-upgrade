@@ -287,36 +287,36 @@ class UpgradeWorkflow:
 
     def _run_pre_checks(self, **kwargs) -> bool:
         """
-        Run pre-upgrade validation checks using unicon.
-
-        Runs ValidationChecks from a CheckTemplate against a device.
+        Run pre-upgrade validation checks using scrapli.
+        Executes show commands and stores output in pre_check folder.
         """
         try:
-            # Use ConnectionManager if available, otherwise create new connection
-            if self.connection_manager:
-                device_conn = self.connection_manager.get_connection('unicon')
-            else:
-                from unicon import Connection
-                device_conn = Connection(
-                    os='iosxe',
-                    hostname=self.device.host,
-                    learn_hostname=True,
-                    credentials={
-                        'default': {
-                            'username': self.device.username,
-                            'password': self.device.password
-                        },
-                        'enable': {
-                            'password': self.device.enable_password or ''
-                        }
-                    },
-                    start=[f'ssh {self.device.username}@{self.device.host}'],
-                    init_commands=[]
-                )
-                device_conn.connect()
+            import os
+            import time
+            from datetime import datetime
 
-            # Basic check - verify device is healthy
-            output = device_conn.execute("show version", timeout=60)
+            # Get device info for folder name
+            hostname = self.device.hostname or self.device.host
+            folder_name = f"pre_check_{hostname}_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+            output_dir = os.path.join("output", folder_name)
+            os.makedirs(output_dir, exist_ok=True)
+
+            # Show commands to run
+            commands = {
+                'show_version': 'show version',
+                'show_inventory': 'show inventory',
+                'show_run': 'show running-config',
+                'show_file_systems': 'show file systems',
+            }
+
+            for cmd_name, cmd in commands.items():
+                try:
+                    output = self.device.send_command(cmd)
+                    output_file = os.path.join(output_dir, f"{cmd_name}.txt")
+                    with open(output_file, 'w') as f:
+                        f.write(output)
+                except Exception as e:
+                    self.errors.append(f"Failed to execute {cmd_name}: {e}")
 
             return True
         except Exception as e:
@@ -468,34 +468,36 @@ class UpgradeWorkflow:
 
     def _run_post_checks(self, **kwargs) -> bool:
         """
-        Run post-upgrade validation checks using unicon.
+        Run post-upgrade validation checks using scrapli.
+        Executes show commands and stores output in post_check folder.
         """
         try:
-            # Use ConnectionManager if available, otherwise create new connection
-            if self.connection_manager:
-                device_conn = self.connection_manager.get_connection('unicon')
-            else:
-                from unicon import Connection
-                device_conn = Connection(
-                    os='iosxe',
-                    hostname=self.device.host,
-                    learn_hostname=True,
-                    credentials={
-                        'default': {
-                            'username': self.device.username,
-                            'password': self.device.password
-                        },
-                        'enable': {
-                            'password': self.device.enable_password or ''
-                        }
-                    },
-                    start=[f'ssh {self.device.username}@{self.device.host}'],
-                    init_commands=[]
-                )
-                device_conn.connect()
+            import os
+            import time
+            from datetime import datetime
 
-            # Basic check - verify device is responding
-            output = device_conn.execute("show version", timeout=60)
+            # Get device info for folder name
+            hostname = self.device.hostname or self.device.host
+            folder_name = f"post_check_{hostname}_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+            output_dir = os.path.join("output", folder_name)
+            os.makedirs(output_dir, exist_ok=True)
+
+            # Show commands to run
+            commands = {
+                'show_version': 'show version',
+                'show_inventory': 'show inventory',
+                'show_run': 'show running-config',
+                'show_file_systems': 'show file systems',
+            }
+
+            for cmd_name, cmd in commands.items():
+                try:
+                    output = self.device.send_command(cmd)
+                    output_file = os.path.join(output_dir, f"{cmd_name}.txt")
+                    with open(output_file, 'w') as f:
+                        f.write(output)
+                except Exception as e:
+                    self.errors.append(f"Failed to execute {cmd_name}: {e}")
 
             return True
         except Exception as e:
