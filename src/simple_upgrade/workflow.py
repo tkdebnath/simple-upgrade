@@ -195,11 +195,11 @@ class UpgradeWorkflow:
         }
 
         # Execute stages in order
+        # Note: Only using scrapli-based stages (readiness, pre_check, ping, post_check, verification)
+        # unicon-based stages (distribute, activate) are excluded due to compatibility issues with this device
         stages_order = [
             'readiness',
             'pre_check',
-            'distribute',
-            'activate',
             'wait',
             'ping',
             'post_check',

@@ -40,6 +40,7 @@ def distribute_image(connection, platform: str, file_server: Dict[str, Any], gol
     image_name = golden_image.get('image_name', '')
     server_ip = file_server.get('ip', '')
     base_path = file_server.get('base_path', '')
+    expected_size = golden_image.get('image_size')
 
     if not image_name or not server_ip:
         result['message'] = 'Missing image name or file server information'
@@ -93,6 +94,30 @@ def distribute_image(connection, platform: str, file_server: Dict[str, Any], gol
 
         # Check if transfer was successful
         if _check_copy_success(output, platform):
+            # Verify file size if expected_size is provided
+            if expected_size:
+                try:
+                    size_check = _check_file_size(connection, platform, image_name, expected_size)
+                    if not size_check['success']:
+                        result['message'] = size_check['message']
+                        return result
+                except Exception as e:
+                    result['message'] = f'Failed to verify file size: {e}'
+                    return result
+
+            # Verify MD5 checksum if provided
+            target_md5 = golden_image.get('md5')
+            if target_md5:
+                try:
+                    md5_verify_cmd = f"verify /md5 flash:/{image_name} {target_md5}"
+                    md5_output = connection.execute(md5_verify_cmd, timeout=600)
+                    if "Verified" not in str(md5_output).lower():
+                        result['message'] = f'MD5 checksum verification failed. Expected: {target_md5}'
+                        return result
+                except Exception as e:
+                    result['message'] = f'MD5 verification failed: {e}'
+                    return result
+
             result['success'] = True
             result['message'] = f'Image distributed successfully: {image_name}'
         else:
@@ -146,6 +171,40 @@ def _build_copy_command(platform: str, protocol: str, server_ip: str, base_path:
         cmd = f"{cmd} source interface {source_interface}"
 
     return cmd
+
+
+def _check_file_size(connection, platform: str, image_name: str, expected_size: int) -> Dict[str, Any]:
+    """
+    Check if the downloaded file has the expected size.
+
+    Args:
+        connection: Active connection object (unicon)
+        platform: Platform name (cisco_iosxe, cisco_nxos)
+        image_name: Image filename
+        expected_size: Expected file size in bytes
+
+    Returns:
+        Dictionary with 'success' and 'message' keys
+    """
+    if 'nx-os' in platform.lower():
+        dest_path = f"bootflash:/{image_name}"
+    else:
+        dest_path = f"flash:/{image_name}"
+
+    try:
+        output = connection.execute(f"dir {dest_path}", timeout=30)
+        # Parse file size from dir output
+        import re
+        match = re.search(r'\s+(\d+)\s+\w{3}\s+\d+', output)
+        if match:
+            actual_size = int(match.group(1))
+            if actual_size == expected_size:
+                return {'success': True}
+            else:
+                return {'success': False, 'message': f'File size mismatch. Expected: {expected_size} bytes, Got: {actual_size} bytes'}
+        return {'success': False, 'message': 'Could not parse file size from dir output'}
+    except Exception as e:
+        return {'success': False, 'message': f'Failed to check file size: {e}'}
 
 
 def _check_copy_success(output: str, platform: str) -> bool:
