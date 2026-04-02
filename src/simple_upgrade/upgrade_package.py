@@ -686,7 +686,8 @@ class UpgradePackage:
             self.stage_results['post_activation_wait']['message'] = 'Waiting 30 seconds before login...'
             time.sleep(30)
 
-            # Step 4: Run post_check
+            # Step 4: Run post_check (get fresh connection after ping succeeded)
+            self._scrapli_conn = None  # Reset connection to get fresh one
             self.post_check()
 
             # Check if post_check failed
@@ -695,7 +696,8 @@ class UpgradePackage:
                 self.failed_stage = 'post_check'
                 return self
 
-            # Step 5: Run verification
+            # Step 5: Run verification (get fresh connection after ping succeeded)
+            self._scrapli_conn = None  # Reset connection to get fresh one
             self.verification()
 
             # Check if verification failed
