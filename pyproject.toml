@@ -5,7 +5,7 @@ description = "A simple Python package for network device firmware upgrades supp
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
-    "scrapli>=2026.2.20",
+    "scrapli[textfsm]>=2026.2.20",
     "netmiko>=4.6.0",
     "pyats>=26.2",
     "genie>=26.2",
