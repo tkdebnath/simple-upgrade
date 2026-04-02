@@ -305,6 +305,21 @@ class MockUpgradeWorkflow:
         self.model = self._get_model()
         self.platform = self._get_platform()
 
+        # Initialize device info (use device's info if available, else default)
+        device_info = getattr(self.device, 'info', {})
+        if not device_info and hasattr(self.device, 'gather_info'):
+            try:
+                device_info = self.device.gather_info()
+            except Exception:
+                device_info = {}
+        self.info = {
+            'version': device_info.get('version', '17.9.4'),
+            'current_version': device_info.get('version', '17.9.4'),
+            'hostname': device_info.get('hostname', 'R1'),
+            'model': device_info.get('model', self.model),
+            'platform': device_info.get('platform', self.platform),
+        }
+
         # Initialize stages
         self._init_stages()
 
@@ -466,6 +481,19 @@ class MockUpgradeWorkflow:
         self.commands_executed.append({'stage': 'readiness', 'command': 'show version', 'mode': 'show'})
         self.commands_executed.append({'stage': 'readiness', 'command': 'dir', 'mode': 'show'})
 
+        target_version = self.golden_image.get('version', 'unknown')
+        current_version = self.info.get('version', '17.9.4')
+
+        # Check if versions match (should not upgrade to same version)
+        if target_version == current_version:
+            if self.manufacturer == 'Cisco':
+                return f"Cisco readiness check: Device already running target version {target_version}"
+            elif self.manufacturer == 'Juniper':
+                return f"Juniper readiness check: Device already running target version {target_version}"
+            elif self.manufacturer == 'Arista':
+                return f"Arista readiness check: Device already running target version {target_version}"
+            return f"Device already running target version {target_version}"
+
         if self.manufacturer == 'Cisco':
             return "Cisco readiness check: Device is ready for upgrade"
         elif self.manufacturer == 'Juniper':
@@ -562,7 +590,7 @@ class MockUpgradeWorkflow:
     def _mock_verification(self) -> str:
         """Mock version verification."""
         target = self.golden_image.get('version', 'unknown')
-        current = '17.9.4'  # Would be from post-upgrade
+        current = self.info.get('version', '17.9.4')  # Use device's current version
 
         self.commands_executed.append({
             'stage': 'verification',

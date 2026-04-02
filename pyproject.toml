@@ -11,6 +11,7 @@ dependencies = [
     "genie>=26.2",
     "rich>=14.3.3",
     "pyyaml>=6.0.3",
+    "netutils>=1.3.0",
 ]
 
 [project.optional-dependencies]

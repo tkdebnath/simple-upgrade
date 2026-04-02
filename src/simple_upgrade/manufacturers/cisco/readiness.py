@@ -149,11 +149,10 @@ def check_readiness(connection, channel: str, platform: str, commands: Dict[str,
     if hasattr(connection, '__enter__') and hasattr(connection, '__exit__'):
         with connection:
 
-            if  platform_lower in ['cisco_ios', 'cisco_iosxe']:
-                # Check 1: using golden image file size determine if free space is enough or not
-                if golden_image and golden_image.get('image_size') and golden_image['image_name'] > 0:
-                    image_size = golden_image['image_size']
-                
+            # Check 1: using golden image file size determine if free space is enough or not
+            image_size = golden_image.get('image_size', 0)
+
+            if platform_lower in ['cisco_ios', 'cisco_iosxe']:
                 # Check 2: Get all flash storages
                 show_file_systems = connection.send_command("show file systems")
                 show_file_systems_parsed = show_file_systems.genie_parse_output()
@@ -171,37 +170,38 @@ def check_readiness(connection, channel: str, platform: str, commands: Dict[str,
                     current_version = show_version_parsed['version']['version']
                     target_version = golden_image.get('version', '')
                     if target_version:
-                        result = compare_version_loose(current_version, "==", target_version)
-                        if result:
+                        is_equal = compare_version_loose(current_version, "==", target_version)
+                        if is_equal:
                             result['errors'].append('Device already running target version')
                             return result
-                        
-                        result = compare_version_loose(current_version, "<", target_version)
-                        if result:
+
+                        is_less = compare_version_loose(current_version, "<", target_version)
+                        if is_less:
                             result['messages'].append('Upgrade')
                         else:
                             result['errors'].append('Downgrade not allowed')
                             return result
 
-                            
-                    
-                    
-                
-                # Check 3: Get flash space
+                # Check 4: Get flash space
+                flash_output = connection.send_command(commands.get('dir', 'dir'))
+                flash_output_str = str(flash_output.result)
+                flash_info = _parse_flash_space(flash_output_str)
+                result['messages'].append(f"Flash space: {flash_info['free']} free of {flash_info['total']}")
+            else:
+                # For other platforms, use the fallback method
                 flash_output = connection.send_command(commands.get('dir', 'dir'))
                 flash_output_str = str(flash_output.result)
                 flash_info = _parse_flash_space(flash_output_str)
                 result['messages'].append(f"Flash space: {flash_info['free']} free of {flash_info['total']}")
 
-            # Check 3: Verify image size requirement
-            if 'image_size' in golden_image:
-                image_size = golden_image['image_size']
+            # Check 5: Verify image size requirement
+            if image_size > 0:
                 if flash_info['free_bytes'] < image_size:
                     result['errors'].append(f"Insufficient flash space. Need {image_size} bytes, have {flash_info['free_bytes']}")
                     return result
                 result['messages'].append(f"Image size requirement met: {image_size} bytes available")
 
-            # Check 4: Verify current version is not same as golden image
+            # Check 6: Verify current version is not same as golden image
             version_output = connection.send_command(commands.get('show_version', 'show version'))
             current_version = _parse_version(str(version_output.result), platform)
 
@@ -222,6 +222,9 @@ def check_readiness(connection, channel: str, platform: str, commands: Dict[str,
                 result['messages'].append('Could not verify configuration lock status')
     else:
         # Fallback: use connection without context manager
+        # Check 1: Get image size from golden image
+        image_size = golden_image.get('image_size', 0)
+
         # Check 2: Get flash space
         flash_output = connection.send_command(commands.get('dir', 'dir'))
         flash_output_str = str(flash_output.result)
@@ -229,8 +232,7 @@ def check_readiness(connection, channel: str, platform: str, commands: Dict[str,
         result['messages'].append(f"Flash space: {flash_info['free']} free of {flash_info['total']}")
 
         # Check 3: Verify image size requirement
-        if 'image_size' in golden_image:
-            image_size = golden_image['image_size']
+        if image_size > 0:
             if flash_info['free_bytes'] < image_size:
                 result['errors'].append(f"Insufficient flash space. Need {image_size} bytes, have {flash_info['free_bytes']}")
                 return result
