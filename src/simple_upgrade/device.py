@@ -312,6 +312,7 @@ class Device:
             r'Catalyst\s+(\S+)',           # For Catalyst switches like 9300, 9400
             r'Platform:\s*(\S+)',          # Platform line
             r'Product\s+Name:\s*(\S+)',    # Some devices have Product Name
+            r'(\S+)\s+Software',           # For IOSv, vios_l2, etc.
         ]
 
         for pattern in model_patterns:
