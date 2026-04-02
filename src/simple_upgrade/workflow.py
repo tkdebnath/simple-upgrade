@@ -555,12 +555,18 @@ class UpgradeManager:
         device_info = self.device.gather_info()
 
         # Initialize workflow
+        # Filter device_kwargs to only include valid UpgradeWorkflow parameters
+        workflow_kwargs = {
+            'auto_update': self.device_kwargs.get('auto_update', True),
+            'wait_time': self.device_kwargs.get('wait_time', 300),
+            'max_retries': self.device_kwargs.get('max_retries', 3),
+        }
         self.workflow = UpgradeWorkflow(
             device=self.device,
             golden_image=self.golden_image,
             file_server=self.file_server,
             connection_mode=self.connection_mode,
-            **self.device_kwargs
+            **workflow_kwargs
         )
 
         # Execute upgrade
