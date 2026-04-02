@@ -226,7 +226,7 @@ class UpgradeWorkflow:
 
     def _check_readiness(self, **kwargs) -> bool:
         """
-        Check if device is ready for upgrade using scrapli.
+        Check if device is ready for upgrade using scrapli and manufacturer module.
 
         Validates:
             - Sufficient flash space
@@ -234,7 +234,30 @@ class UpgradeWorkflow:
             - Device health
         """
         try:
-            # Use scrapli to get device information
+            # Get platform from device
+            platform = self.device.platform
+
+            # Use manufacturer-specific readiness check
+            from .manufacturers import execute_stage
+
+            # Get commands
+            from .constants import DEVICE_COMMANDS
+            commands = DEVICE_COMMANDS.get('cisco_iosxe', {'dir': 'dir', 'show_version': 'show version'})
+
+            # Build golden image from kwargs or instance
+            golden_image = kwargs.get('golden_image', self.golden_image)
+
+            # Execute manufacturer readiness check
+            result = execute_stage('cisco', 'readiness', self.device._connection, 'scrapli', platform, commands, golden_image)
+
+            if result and result.get('ready'):
+                self.errors.extend(result.get('errors', []))
+                return True
+            elif result:
+                self.errors.extend(result.get('errors', []))
+                return False
+
+            # Fallback if execute_stage fails
             if not self.device._connection:
                 self.errors.append("Device not connected")
                 return False
@@ -245,9 +268,7 @@ class UpgradeWorkflow:
             # Check if image size requirement can be met
             if 'image_size' in self.golden_image:
                 image_size = self.golden_image['image_size']
-                # Simple check - look for free space in output
                 if 'bytes' in flash_output.lower():
-                    # Could parse actual free space, but for now just continue
                     pass
 
             # Check current version
@@ -605,6 +626,9 @@ class UpgradeManager:
         # Get scrapli connection
         conn = cm.get_connection('scrapli')
 
+        # Open connection
+        conn.open()
+
         # Get platform from connection manager
         platform = cm.get_platform(channel='scrapli')
 
@@ -613,6 +637,9 @@ class UpgradeManager:
 
         # Fetch info using the connection
         device_info = sync_mgr.fetch_info()
+
+        # Close connection
+        conn.close()
         cm.disconnect()
 
         return device_info
