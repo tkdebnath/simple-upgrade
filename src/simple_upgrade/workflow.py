@@ -58,7 +58,8 @@ class UpgradeWorkflow:
         auto_update: bool = True,
         wait_time: int = 300,
         max_retries: int = 3,
-        connection_mode: str = "normal"  # normal, mock, dry_run
+        connection_mode: str = "normal",  # normal, mock, dry_run
+        connection_manager: Optional[Any] = None
     ):
         """
         Initialize the upgrade workflow.
@@ -71,6 +72,7 @@ class UpgradeWorkflow:
             wait_time: Wait time after activation in seconds
             max_retries: Maximum retries for each stage
             connection_mode: Connection mode - 'normal', 'mock', or 'dry_run'
+            connection_manager: Optional ConnectionManager for unified connection handling
         """
         self.device = device
         self.golden_image = golden_image
@@ -79,6 +81,7 @@ class UpgradeWorkflow:
         self.wait_time = wait_time
         self.max_retries = max_retries
         self.connection_mode = connection_mode
+        self.connection_manager = connection_manager
 
         self.stages: Dict[str, UpgradeStage] = {}
         self.errors: List[str] = []
@@ -289,19 +292,31 @@ class UpgradeWorkflow:
         Runs ValidationChecks from a CheckTemplate against a device.
         """
         try:
-            from genie.pyats import connections
-
-            # Connect using unicon
-            device_conn = connections.connect(self.device.host,
-                                              username=self.device.username,
-                                              password=self.device.password,
-                                              os='iosxe')
+            # Use ConnectionManager if available, otherwise create new connection
+            if self.connection_manager:
+                device_conn = self.connection_manager.get_connection('unicon')
+            else:
+                from unicon import Connection
+                device_conn = Connection(
+                    os='iosxe',
+                    hostname=self.device.host,
+                    learn_hostname=True,
+                    credentials={
+                        'default': {
+                            'username': self.device.username,
+                            'password': self.device.password
+                        },
+                        'enable': {
+                            'password': self.device.enable_password or ''
+                        }
+                    },
+                    start=[f'ssh {self.device.username}@{self.device.host}'],
+                    init_commands=[]
+                )
+                device_conn.connect()
 
             # Basic check - verify device is healthy
-            output = device_conn.execute("show version")
-
-            # Add more pre-checks as needed
-            device_conn.disconnect()
+            output = device_conn.execute("show version", timeout=60)
 
             return True
         except Exception as e:
@@ -315,13 +330,28 @@ class UpgradeWorkflow:
         Supports: HTTP, HTTPS, TFTP, FTP, SCP
         """
         try:
-            from genie.pyats import connections
-
-            # Connect using unicon
-            device_conn = connections.connect(self.device.host,
-                                              username=self.device.username,
-                                              password=self.device.password,
-                                              os='iosxe')
+            # Use ConnectionManager if available, otherwise create new connection
+            if self.connection_manager:
+                device_conn = self.connection_manager.get_connection('unicon')
+            else:
+                from unicon import Connection
+                device_conn = Connection(
+                    os='iosxe',
+                    hostname=self.device.host,
+                    learn_hostname=True,
+                    credentials={
+                        'default': {
+                            'username': self.device.username,
+                            'password': self.device.password
+                        },
+                        'enable': {
+                            'password': self.device.enable_password or ''
+                        }
+                    },
+                    start=[f'ssh {self.device.username}@{self.device.host}'],
+                    init_commands=[]
+                )
+                device_conn.connect()
 
             protocol = self.file_server.get('protocol', 'http').lower()
             file_name = self.golden_image.get('image_name', '')
@@ -330,7 +360,6 @@ class UpgradeWorkflow:
 
             if not file_name or not file_server_ip:
                 self.errors.append("Missing file name or file server information")
-                device_conn.disconnect()
                 return False
 
             # Build copy command based on protocol
@@ -345,18 +374,15 @@ class UpgradeWorkflow:
                 copy_cmd = f"copy scp://{username}@{file_server_ip}/{base_path}/{file_name} {file_name}"
             else:
                 self.errors.append(f"Unsupported protocol: {protocol}")
-                device_conn.disconnect()
                 return False
 
-            # Execute copy command
-            output = device_conn.execute(copy_cmd)
+            # Execute copy command (with longer timeout for file transfer)
+            output = device_conn.execute(copy_cmd, timeout=300)
 
             # Check if transfer was successful
             if "bytes copied" in output.lower() or "OK" in output:
-                device_conn.disconnect()
                 return True
 
-            device_conn.disconnect()
             return False
 
         except Exception as e:
@@ -370,32 +396,44 @@ class UpgradeWorkflow:
         Uses: install add file <image> activate commit
         """
         try:
-            from genie.pyats import connections
-
-            # Connect using unicon
-            device_conn = connections.connect(self.device.host,
-                                              username=self.device.username,
-                                              password=self.device.password,
-                                              os='iosxe')
+            # Use ConnectionManager if available, otherwise create new connection
+            if self.connection_manager:
+                device_conn = self.connection_manager.get_connection('unicon')
+            else:
+                from unicon import Connection
+                device_conn = Connection(
+                    os='iosxe',
+                    hostname=self.device.host,
+                    learn_hostname=True,
+                    credentials={
+                        'default': {
+                            'username': self.device.username,
+                            'password': self.device.password
+                        },
+                        'enable': {
+                            'password': self.device.enable_password or ''
+                        }
+                    },
+                    start=[f'ssh {self.device.username}@{self.device.host}'],
+                    init_commands=[]
+                )
+                device_conn.connect()
 
             image_name = self.golden_image.get('image_name', '')
 
             if not image_name:
                 self.errors.append("Missing image name for activation")
-                device_conn.disconnect()
                 return False
 
             # Cisco IOS-XE activation command
             activate_cmd = f"install add file {image_name} activate commit"
 
-            output = device_conn.execute(activate_cmd)
+            output = device_conn.execute(activate_cmd, timeout=300)
 
             # Check if activation was accepted
             if "installed" in output.lower() or "commit" in output.lower():
-                device_conn.disconnect()
                 return True
 
-            device_conn.disconnect()
             return False
 
         except Exception as e:
@@ -433,17 +471,31 @@ class UpgradeWorkflow:
         Run post-upgrade validation checks using unicon.
         """
         try:
-            from genie.pyats import connections
-
-            # Connect using unicon
-            device_conn = connections.connect(self.device.host,
-                                              username=self.device.username,
-                                              password=self.device.password,
-                                              os='iosxe')
+            # Use ConnectionManager if available, otherwise create new connection
+            if self.connection_manager:
+                device_conn = self.connection_manager.get_connection('unicon')
+            else:
+                from unicon import Connection
+                device_conn = Connection(
+                    os='iosxe',
+                    hostname=self.device.host,
+                    learn_hostname=True,
+                    credentials={
+                        'default': {
+                            'username': self.device.username,
+                            'password': self.device.password
+                        },
+                        'enable': {
+                            'password': self.device.enable_password or ''
+                        }
+                    },
+                    start=[f'ssh {self.device.username}@{self.device.host}'],
+                    init_commands=[]
+                )
+                device_conn.connect()
 
             # Basic check - verify device is responding
-            output = device_conn.execute("show version")
-            device_conn.disconnect()
+            output = device_conn.execute("show version", timeout=60)
 
             return True
         except Exception as e:
@@ -575,12 +627,29 @@ class UpgradeManager:
         # Gather device information
         device_info = self.device.gather_info()
 
+        # Create ConnectionManager for unified connection handling
+        connection_manager = ConnectionManager(
+            host=self.host,
+            username=self.username,
+            password=self.password,
+            device_type=self.device_type,
+            port=self.port,
+            connection_timeout=self.device_kwargs.get('connection_timeout', 30),
+            enable_mode=self.device_kwargs.get('enable_mode', False),
+            enable_password=self.device_kwargs.get('enable_password'),
+            auth_strict_key=self.device_kwargs.get('auth_strict_key', False),
+            transport=self.device_kwargs.get('transport', 'ssh'),
+            connection_mode=self.connection_mode,
+            scrapli_args=self.device_kwargs.get('scrapli_args', {})
+        )
+
         # Initialize workflow
         # Filter device_kwargs to only include valid UpgradeWorkflow parameters
         workflow_kwargs = {
             'auto_update': self.device_kwargs.get('auto_update', True),
             'wait_time': self.device_kwargs.get('wait_time', 300),
             'max_retries': self.device_kwargs.get('max_retries', 3),
+            'connection_manager': connection_manager,
         }
         self.workflow = UpgradeWorkflow(
             device=self.device,

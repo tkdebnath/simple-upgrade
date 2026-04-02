@@ -1,7 +1,7 @@
 """
 Connection Manager - Centralized connection object management.
 
-Provides a unified interface to create connection objects for scrapli.
+Provides a unified interface to create connection objects for scrapli and unicon.
 """
 
 from typing import Optional, Dict, Any
@@ -95,6 +95,7 @@ class ConnectionManager:
 
         # Connection objects
         self._scrapli_conn = None
+        self._unicon_conn = None
         self._active_channel = None
         self.channel = None  # Channel name for external use
         self.channel_platform = None  # Platform for the active channel
@@ -147,7 +148,7 @@ class ConnectionManager:
         Get a connection object for the specified library.
 
         Args:
-            channel: The library to use - 'scrapli'
+            channel: The library to use - 'scrapli' or 'unicon'
 
         Returns:
             Connection object for the specified library
@@ -157,10 +158,13 @@ class ConnectionManager:
         """
         channel = channel.lower()
 
+        if channel == 'unicon':
+            return self._get_unicon_connection()
+
         if channel != 'scrapli':
             raise ConnectionError(
                 f"Invalid channel: {channel}. "
-                f"Supported channel: scrapli"
+                f"Supported channels: scrapli, unicon"
             )
 
         # Return existing connection if already established
@@ -177,6 +181,46 @@ class ConnectionManager:
 
         except Exception as e:
             raise ConnectionError(f"Failed to connect to {self.host}: {e}")
+
+    def _get_unicon_connection(self) -> Any:
+        """
+        Create and return a unicon connection object.
+
+        Returns:
+            Unicon Connection object
+        """
+        try:
+            from unicon import Connection
+
+            # Get platform for unicon
+            unicon_platform = self._get_library_platform('unicon')
+
+            conn = Connection(
+                os=unicon_platform,
+                hostname=self.host,
+                credentials={
+                    'default': {
+                        'username': self.username,
+                        'password': self.password
+                    },
+                    'enable': {
+                        'password': self.enable_password or ''
+                    }
+                },
+                start=[f'ssh {self.username}@{self.host}'],
+                init_commands=[],
+                timeout=self.connection_timeout
+            )
+            conn.connect()
+
+            self._unicon_conn = conn
+            self._active_channel = 'unicon'
+            self.channel = 'unicon'
+
+            return conn
+
+        except Exception as e:
+            raise ConnectionError(f"Unicon connection failed: {e}")
 
     def get_platform(self, channel: Optional[str] = None) -> str:
         """
@@ -288,6 +332,12 @@ class ConnectionManager:
                 except Exception:
                     pass
                 self._scrapli_conn = None
+            elif channel == 'unicon' and self._unicon_conn:
+                try:
+                    self._unicon_conn.disconnect()
+                except Exception:
+                    pass
+                self._unicon_conn = None
 
         else:
             # Disconnect all channels
@@ -297,6 +347,12 @@ class ConnectionManager:
                 except Exception:
                     pass
                 self._scrapli_conn = None
+            if self._unicon_conn:
+                try:
+                    self._unicon_conn.disconnect()
+                except Exception:
+                    pass
+                self._unicon_conn = None
 
         self._active_channel = None
         self.channel = None
@@ -316,6 +372,8 @@ class ConnectionManager:
             channel = channel.lower()
             if channel == 'scrapli':
                 return self._scrapli_conn is not None
+            elif channel == 'unicon':
+                return self._unicon_conn is not None
             return False
 
         return self._active_channel is not None
