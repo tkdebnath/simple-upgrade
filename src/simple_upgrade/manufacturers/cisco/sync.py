@@ -82,17 +82,34 @@ def fetch_info(connection, channel: str, platform: str, commands: Dict[str, str]
         'memory_size': '',
     }
 
-    # Fetch version
-    version_output = connection.send_command(commands.get('show_version', 'show version'))
-    info['version'] = version_output
-    info['current_version'] = info['version']
+    # Use connection as context manager if it supports __enter__ and __exit__
+    if hasattr(connection, '__enter__') and hasattr(connection, '__exit__'):
+        with connection:
+            # Fetch version
+            version_output = connection.send_command(commands.get('show_version', 'show version'))
+            info['version'] = version_output
+            info['current_version'] = info['version']
 
-    # Fetch hostname
-    hostname_output = connection.send_command(commands.get('show_version', 'show version'))
-    info['hostname'] = hostname_output
+            # Fetch hostname
+            hostname_output = connection.send_command(commands.get('show_version', 'show version'))
+            info['hostname'] = hostname_output
 
-    # Fetch inventory
-    inventory_output = connection.send_command(commands.get('show_inventory', 'show inventory'))
-    info['inventory'] = inventory_output
+            # Fetch inventory
+            inventory_output = connection.send_command(commands.get('show_inventory', 'show inventory'))
+            info['inventory'] = inventory_output
+    else:
+        # Fallback: just use the connection without context manager
+        # Fetch version
+        version_output = connection.send_command(commands.get('show_version', 'show version'))
+        info['version'] = version_output
+        info['current_version'] = info['version']
+
+        # Fetch hostname
+        hostname_output = connection.send_command(commands.get('show_version', 'show version'))
+        info['hostname'] = hostname_output
+
+        # Fetch inventory
+        inventory_output = connection.send_command(commands.get('show_inventory', 'show inventory'))
+        info['inventory'] = inventory_output
 
     return info

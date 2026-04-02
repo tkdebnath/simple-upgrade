@@ -7,6 +7,31 @@ Validates platform and channel before executing commands.
 from typing import Dict, Any
 
 
+def _validate_channel(connection) -> None:
+    """
+    Validate that the connection is a scrapli connection.
+
+    Args:
+        connection: Connection object to validate
+
+    Raises:
+        ValueError: If connection is not a scrapli connection
+    """
+    # Check if connection has send_command method
+    if not hasattr(connection, 'send_command'):
+        raise ValueError(
+            "Invalid connection object. Expected a connection with send_command method."
+        )
+
+    # Check module to identify connection type
+    module = getattr(connection, '__module__', '')
+    if 'scrapli' not in module:
+        raise ValueError(
+            f"Invalid connection type: {module}. "
+            f"Expected scrapli connection."
+        )
+
+
 def fetch_info(connection, channel: str, platform: str, commands: Dict[str, str]) -> Dict[str, Any]:
     """
     Fetch all device information using Arista-specific commands.
@@ -57,17 +82,34 @@ def fetch_info(connection, channel: str, platform: str, commands: Dict[str, str]
         'memory_size': '',
     }
 
-    # Fetch version
-    version_output = connection.send_command(commands.get('show_version', 'show version'))
-    info['version'] = version_output
-    info['current_version'] = info['version']
+    # Use connection as context manager if it supports __enter__ and __exit__
+    if hasattr(connection, '__enter__') and hasattr(connection, '__exit__'):
+        with connection:
+            # Fetch version
+            version_output = connection.send_command(commands.get('show_version', 'show version'))
+            info['version'] = version_output
+            info['current_version'] = info['version']
 
-    # Fetch hostname
-    hostname_output = connection.send_command(commands.get('show_version', 'show version'))
-    info['hostname'] = hostname_output
+            # Fetch hostname
+            hostname_output = connection.send_command(commands.get('show_version', 'show version'))
+            info['hostname'] = hostname_output
 
-    # Fetch inventory
-    inventory_output = connection.send_command(commands.get('show_inventory', 'show inventory'))
-    info['inventory'] = inventory_output
+            # Fetch inventory
+            inventory_output = connection.send_command(commands.get('show_inventory', 'show inventory'))
+            info['inventory'] = inventory_output
+    else:
+        # Fallback: just use the connection without context manager
+        # Fetch version
+        version_output = connection.send_command(commands.get('show_version', 'show version'))
+        info['version'] = version_output
+        info['current_version'] = info['version']
+
+        # Fetch hostname
+        hostname_output = connection.send_command(commands.get('show_version', 'show version'))
+        info['hostname'] = hostname_output
+
+        # Fetch inventory
+        inventory_output = connection.send_command(commands.get('show_inventory', 'show inventory'))
+        info['inventory'] = inventory_output
 
     return info
