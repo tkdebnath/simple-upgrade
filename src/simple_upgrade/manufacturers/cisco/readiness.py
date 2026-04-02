@@ -146,7 +146,8 @@ def check_readiness(connection, channel: str, platform: str, commands: Dict[str,
         with connection:
             # Check 2: Get flash space
             flash_output = connection.send_command(commands.get('dir', 'dir'))
-            flash_info = _parse_flash_space(flash_output)
+            flash_output_str = str(flash_output.result)
+            flash_info = _parse_flash_space(flash_output_str)
             result['messages'].append(f"Flash space: {flash_info['free']} free of {flash_info['total']}")
 
             # Check 3: Verify image size requirement
@@ -180,7 +181,8 @@ def check_readiness(connection, channel: str, platform: str, commands: Dict[str,
         # Fallback: use connection without context manager
         # Check 2: Get flash space
         flash_output = connection.send_command(commands.get('dir', 'dir'))
-        flash_info = _parse_flash_space(flash_output)
+        flash_output_str = str(flash_output.result)
+        flash_info = _parse_flash_space(flash_output_str)
         result['messages'].append(f"Flash space: {flash_info['free']} free of {flash_info['total']}")
 
         # Check 3: Verify image size requirement
