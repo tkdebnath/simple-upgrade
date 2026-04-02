@@ -152,6 +152,11 @@ DEVICE_COMMANDS = {
 }
 
 
+def get_device_commands(platform: str) -> dict:
+    """Get all commands for a platform."""
+    return DEVICE_COMMANDS.get(platform, DEVICE_COMMANDS.get('cisco_iosxe', {}))
+
+
 def get_all_libraries() -> list:
     """Return list of supported libraries."""
     return ['scrapli', 'netmiko', 'unicon']

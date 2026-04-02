@@ -1,11 +1,12 @@
 """
-Cisco manufacturer-specific upgrade implementations.
-
-Supports:
-    - Cisco IOS-XE (Catalyst 9K, 3650, etc.)
-    - Cisco NX-OS (Nexus 9K, etc.)
+Cisco manufacturer package.
 """
 
-from . import sync, readiness, distribution, activation, verification, checks
+from . import sync
+from . import readiness
+from . import distribution
+from . import activation
+from . import checks
+from . import verification
 
-__all__ = ['sync', 'readiness', 'distribution', 'activation', 'verification', 'checks']
+SUPPORTED_PLATFORMS = ['cisco_iosxe', 'cisco_xe', 'iosxe', 'cisco_ios']
