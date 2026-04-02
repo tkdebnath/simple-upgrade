@@ -46,6 +46,9 @@ from .device_profiles import (
 from .manufacturers import cisco
 from .manufacturers import get_manufacturer_module, execute_stage
 
+# Upgrade Package - central upgrade orchestrator
+from .upgrade_package import UpgradePackage
+
 # Mock and Dry-Run functionality
 from .mocks import (
     MockConnection,

@@ -2,8 +2,8 @@
 Upgrade workflow management - handles the upgrade stages from readiness to verification.
 
 Library usage:
-- scrapli: sync, readiness, verification
-- unicon: pre-checks, post-checks, distribution, activation
+- scrapli: sync, readiness, pre-checks, post-checks, ping, verification
+- unicon: manually managed for distribution and activation
 
 Mock and Dry-Run modes:
 - mock: Simulate entire pipeline without any real connections
@@ -195,8 +195,8 @@ class UpgradeWorkflow:
         }
 
         # Execute stages in order
-        # Note: Only using scrapli-based stages (readiness, pre_check, ping, post_check, verification)
-        # unicon-based stages (distribute, activate) are excluded due to compatibility issues with this device
+        # Note: Only using scrapli-based stages
+        # unicon-based stages (distribute, activate) are handled separately
         stages_order = [
             'readiness',
             'pre_check',
@@ -345,120 +345,6 @@ class UpgradeWorkflow:
         Run post-upgrade validation checks.
         """
         return self._run_checks('post', **kwargs)
-
-    def _distribute_image(self, **kwargs) -> bool:
-        """
-        Distribute firmware image to device using unicon.
-
-        Supports: HTTP, HTTPS, TFTP, FTP, SCP
-        """
-        try:
-            # Use ConnectionManager if available, otherwise create new connection
-            if self.connection_manager:
-                device_conn = self.connection_manager.get_connection('unicon')
-            else:
-                from unicon import Connection
-                device_conn = Connection(
-                    os='iosxe',
-                    hostname=self.device.host,
-                    learn_hostname=True,
-                    goto_enable=False,
-                    credentials={
-                        'default': {
-                            'username': self.device.username,
-                            'password': self.device.password
-                        },
-                        'enable': {
-                            'password': self.device.enable_password or ''
-                        }
-                    },
-                    start=[f'ssh {self.device.username}@{self.device.host}'],
-                    init_commands=[]
-                )
-                device_conn.connect()
-
-            # Get platform
-            platform = self.device.platform or 'cisco_iosxe'
-
-            # Get tacacs_source_interface from device if not provided in file_server
-            source_interface = self.file_server.get('source_interface') or self.golden_image.get('source_interface')
-            if not source_interface:
-                # Check if device has tacacs_source_interface from sync
-                source_interface = getattr(self.device, 'tacacs_source_interface', None)
-
-            # Use manufacturer-specific distribution
-            from .manufacturers import execute_stage
-            result = execute_stage('cisco', 'distribution', device_conn, platform, self.file_server, self.golden_image, source_interface)
-
-            if result:
-                if result.get('success'):
-                    return True
-                self.errors.append(result.get('message', 'Distribution failed'))
-                return False
-
-            return False
-
-        except Exception as e:
-            self.errors.append(f"Distribution failed: {e}")
-            return False
-
-    def _activate_image(self, **kwargs) -> bool:
-        """
-        Activate the new firmware on the device using unicon.
-
-        Uses: install add file <image> activate commit
-        """
-        try:
-            # Use ConnectionManager if available, otherwise create new connection
-            if self.connection_manager:
-                device_conn = self.connection_manager.get_connection('unicon')
-            else:
-                from unicon import Connection
-                device_conn = Connection(
-                    os='iosxe',
-                    hostname=self.device.host,
-                    learn_hostname=True,
-                    goto_enable=False,
-                    credentials={
-                        'default': {
-                            'username': self.device.username,
-                            'password': self.device.password
-                        },
-                        'enable': {
-                            'password': self.device.enable_password or ''
-                        }
-                    },
-                    start=[f'ssh {self.device.username}@{self.device.host}'],
-                    init_commands=[]
-                )
-                device_conn.connect()
-
-            image_name = self.golden_image.get('image_name', '')
-
-            if not image_name:
-                self.errors.append("Missing image name for activation")
-                return False
-
-            # Exit config mode if in configuration mode
-            try:
-                device_conn.execute('end', timeout=30)
-            except Exception:
-                pass
-
-            # Cisco IOS-XE activation command
-            activate_cmd = f"install add file {image_name} activate commit"
-
-            output = device_conn.execute(activate_cmd, timeout=300)
-
-            # Check if activation was accepted
-            if "installed" in output.lower() or "commit" in output.lower():
-                return True
-
-            return False
-
-        except Exception as e:
-            self.errors.append(f"Activation failed: {e}")
-            return False
 
     def _wait_for_stabilization(self, **kwargs) -> bool:
         """
