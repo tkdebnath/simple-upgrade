@@ -426,20 +426,6 @@ class UpgradePackage:
             if not source_interface:
                 source_interface = self.device_info.get('tacacs_source_interface')
 
-            # Configure HTTP client source interface if provided
-            if source_interface:
-                try:
-                    config_cmd = f"ip http client source-interface {source_interface}"
-                    device_conn.execute(config_cmd, timeout=30)
-                except Exception as e:
-                    self.stage_results['distribute'] = {
-                        'success': False,
-                        'message': f'Failed to configure source interface: {e}'
-                    }
-                    self.errors.append(f"distribute failed: {e}")
-                    self.failed_stage = 'distribute'
-                    return self
-
             # Execute distribution using manufacturer module
             result = execute_stage(
                 'cisco', 'distribution',
