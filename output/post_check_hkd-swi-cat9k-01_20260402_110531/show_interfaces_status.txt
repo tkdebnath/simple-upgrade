@@ -1,0 +1,9 @@
+Port         Name               Status       Vlan       Duplex  Speed Type
+Gi1/0/1                         connected    1          a-full a-1000 unknown
+Gi1/0/2                         connected    1          a-full a-1000 unknown
+Gi1/0/3                         connected    1          a-full a-1000 unknown
+Gi1/0/4                         connected    1          a-full a-1000 unknown
+Gi1/0/5                         connected    1          a-full a-1000 unknown
+Gi1/0/6                         connected    1          a-full a-1000 unknown
+Gi1/0/7                         connected    1          a-full a-1000 unknown
+Gi1/0/8                         connected    1          a-full a-1000 unknown

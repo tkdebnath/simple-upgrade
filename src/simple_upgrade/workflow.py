@@ -406,7 +406,12 @@ class UpgradeWorkflow:
                 copy_cmd = f"{copy_cmd} source interface {source_interface}"
 
             # Execute copy command (with longer timeout for file transfer)
-            output = device_conn.execute(copy_cmd, timeout=300)
+            # Use Dialog to handle the filename prompt
+            from unicon.eal.dialogs import Dialog
+            dialog = Dialog([
+                ['Destination filename \\[.*\\]', '\r', 'continue', False],
+            ])
+            output = device_conn.execute(copy_cmd, timeout=300, dialog=dialog)
 
             # Check if transfer was successful
             if "bytes copied" in output.lower() or "OK" in output:

@@ -1,0 +1,11 @@
+Interface                      Status         Protocol Description
+Vl1                            admin down     down
+Gi0/0                          up             up       Containerlab management interface
+Gi1/0/1                        up             up
+Gi1/0/2                        up             up
+Gi1/0/3                        up             up
+Gi1/0/4                        up             up
+Gi1/0/5                        up             up
+Gi1/0/6                        up             up
+Gi1/0/7                        up             up
+Gi1/0/8                        up             up

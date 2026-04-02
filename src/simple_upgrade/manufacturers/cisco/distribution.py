@@ -34,18 +34,25 @@ def distribute_image(connection, platform: str, file_server: Dict[str, Any], gol
     image_name = golden_image.get('image_name', '')
     server_ip = file_server.get('ip', '')
     base_path = file_server.get('base_path', '')
+    source_interface = file_server.get('source_interface') or golden_image.get('source_interface')
 
     if not image_name or not server_ip:
         result['message'] = 'Missing image name or file server information'
         return result
 
     # Build copy command based on protocol and platform
-    copy_cmd = _build_copy_command(platform, protocol, server_ip, base_path, image_name)
+    copy_cmd = _build_copy_command(platform, protocol, server_ip, base_path, image_name, source_interface)
     result['command'] = copy_cmd
 
     try:
-        # Execute copy command
-        output = connection.execute(copy_cmd)
+        # Handle the destination filename prompt using Dialog
+        from unicon.eal.dialogs import Dialog
+        dialog = Dialog([
+            ['Destination filename \\[.*\\]', '\r', 'continue', False],
+        ])
+
+        # Execute copy command with dialog to handle the filename prompt
+        output = connection.execute(copy_cmd, dialog=dialog)
 
         # Check if transfer was successful
         if _check_copy_success(output, platform):
@@ -60,7 +67,7 @@ def distribute_image(connection, platform: str, file_server: Dict[str, Any], gol
     return result
 
 
-def _build_copy_command(platform: str, protocol: str, server_ip: str, base_path: str, image_name: str) -> str:
+def _build_copy_command(platform: str, protocol: str, server_ip: str, base_path: str, image_name: str, source_interface: str = None) -> str:
     """
     Build the copy command based on platform and protocol.
 
@@ -84,21 +91,24 @@ def _build_copy_command(platform: str, protocol: str, server_ip: str, base_path:
 
     protocol = protocol.lower()
 
+    # Build base copy command
     if protocol in ['http', 'https']:
-        return f"copy {protocol}://{server_ip}/{base_path}/{image_name} {dest_path}"
-
+        cmd = f"copy {protocol}://{server_ip}/{base_path}/{image_name} {dest_path}"
     elif protocol == 'tftp':
-        return f"copy tftp://{server_ip}/{base_path}/{image_name} {dest_path}"
-
+        cmd = f"copy tftp://{server_ip}/{base_path}/{image_name} {dest_path}"
     elif protocol == 'ftp':
-        return f"copy ftp://{server_ip}/{base_path}/{image_name} {dest_path}"
-
+        cmd = f"copy ftp://{server_ip}/{base_path}/{image_name} {dest_path}"
     elif protocol == 'scp':
         # SCP requires username
-        return f"copy scp://admin@{server_ip}/{base_path}/{image_name} {dest_path}"
-
+        cmd = f"copy scp://admin@{server_ip}/{base_path}/{image_name} {dest_path}"
     else:
         raise ValueError(f"Unsupported protocol: {protocol}")
+
+    # Add source interface if specified
+    if source_interface:
+        cmd = f"{cmd} source interface {source_interface}"
+
+    return cmd
 
 
 def _check_copy_success(output: str, platform: str) -> bool:
