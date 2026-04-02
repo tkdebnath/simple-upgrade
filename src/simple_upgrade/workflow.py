@@ -439,6 +439,12 @@ class UpgradeWorkflow:
                 self.errors.append("Missing image name for activation")
                 return False
 
+            # Exit config mode if in configuration mode
+            try:
+                device_conn.execute('end', timeout=30)
+            except Exception:
+                pass
+
             # Cisco IOS-XE activation command
             activate_cmd = f"install add file {image_name} activate commit"
 
