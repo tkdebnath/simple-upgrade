@@ -45,6 +45,12 @@
     "save_config": "write memory",
     "reload_device": "reload"
   },
+  "boot_commands": [
+    "no boot system",
+    "boot system flash:packages.conf",
+    "no boot manual",
+    "no system ignore startupconfig switch all"
+  ],
   "upgrade_notes": [
     "C9300 uses install add/activate/commit workflow",
     "Ensure sufficient flash space before upgrade",
