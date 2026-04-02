@@ -31,6 +31,12 @@ def distribute_image(connection, platform: str, file_server: Dict[str, Any], gol
     }
 
     protocol = file_server.get('protocol', 'http').lower()
+
+    # Check if protocol is http or https
+    if protocol not in ['http', 'https']:
+        result['message'] = f'Unsupported protocol: {protocol}. Only http and https are supported.'
+        return result
+
     image_name = golden_image.get('image_name', '')
     server_ip = file_server.get('ip', '')
     base_path = file_server.get('base_path', '')

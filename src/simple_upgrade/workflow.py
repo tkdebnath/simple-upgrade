@@ -377,53 +377,18 @@ class UpgradeWorkflow:
                 )
                 device_conn.connect()
 
-            protocol = self.file_server.get('protocol', 'http').lower()
-            file_name = self.golden_image.get('image_name', '')
-            file_server_ip = self.file_server.get('ip', '')
-            base_path = self.file_server.get('base_path', '')
-            source_interface = self.file_server.get('source_interface') or self.golden_image.get('source_interface')
+            # Get platform
+            platform = self.device.platform or 'cisco_iosxe'
 
-            if not file_name or not file_server_ip:
-                self.errors.append("Missing file name or file server information")
+            # Use manufacturer-specific distribution
+            from .manufacturers import execute_stage
+            result = execute_stage('cisco', 'distribution', device_conn, platform, self.file_server, self.golden_image)
+
+            if result:
+                if result.get('success'):
+                    return True
+                self.errors.append(result.get('message', 'Distribution failed'))
                 return False
-
-            # Build copy command based on protocol
-            if protocol in ['http', 'https']:
-                copy_cmd = f"copy {protocol}://{file_server_ip}/{base_path}/{file_name} {file_name}"
-            elif protocol == 'tftp':
-                copy_cmd = f"copy tftp://{file_server_ip}/{base_path}/{file_name} {file_name}"
-            elif protocol == 'ftp':
-                copy_cmd = f"copy ftp://{file_server_ip}/{base_path}/{file_name} {file_name}"
-            elif protocol == 'scp':
-                username = self.file_server.get('username', self.device.username)
-                copy_cmd = f"copy scp://{username}@{file_server_ip}/{base_path}/{file_name} {file_name}"
-            else:
-                self.errors.append(f"Unsupported protocol: {protocol}")
-                return False
-
-            # Add source interface if specified
-            if source_interface:
-                copy_cmd = f"{copy_cmd} source interface {source_interface}"
-
-            # Execute copy command (with longer timeout for file transfer)
-            # Use Dialog to handle the filename prompt
-            from unicon.eal.dialogs import Dialog
-            dialog = Dialog([
-                ['Destination filename \\[.*\\]', '\r', 'continue', False],
-            ])
-            output = device_conn.execute(copy_cmd, timeout=300, dialog=dialog)
-
-            # Check if transfer was successful
-            if "bytes copied" in output.lower() or "OK" in output:
-                # Verify md5 checksum if provided
-                target_md5 = self.golden_image.get('md5')
-                if target_md5:
-                    md5_verify_cmd = f"verify /md5 flash:/{file_name}"
-                    md5_output = device_conn.execute(md5_verify_cmd, timeout=120)
-                    if target_md5.upper() not in str(md5_output).upper():
-                        self.errors.append(f"MD5 checksum mismatch. Expected: {target_md5}")
-                        return False
-                return True
 
             return False
 
