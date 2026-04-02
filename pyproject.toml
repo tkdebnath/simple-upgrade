@@ -11,6 +11,7 @@ dependencies = [
     "genie>=26.2",
     "rich>=14.3.3",
     "pyyaml>=6.0.3",
+    "ssh2-python>=1.2.0.post1",
 ]
 
 [project.optional-dependencies]
