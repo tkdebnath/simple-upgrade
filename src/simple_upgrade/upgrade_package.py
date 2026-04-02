@@ -456,12 +456,16 @@ class UpgradePackage:
 
     def activate(self) -> 'UpgradePackage':
         """
-        Activate the new firmware on the device.
+        Activate the new firmware on the device using profile-specific commands.
 
-        Uses unicon for install command execution.
+        Steps:
+        1. Get hardware model from device
+        2. Match model to device profile
+        3. Use profile's upgrade_commands for activation
 
         Updates:
             - stage_results: activate result
+            - device_profile: matched profile
 
         Returns:
             Self for method chaining
@@ -472,6 +476,7 @@ class UpgradePackage:
             device_conn = cm.get_connection('unicon')
             device_conn.connect()
 
+            # Get image name
             image_name = self.golden_image.get('image_name')
             if not image_name:
                 self.stage_results['activate'] = {
@@ -488,20 +493,61 @@ class UpgradePackage:
             except Exception:
                 pass
 
-            # Cisco IOS-XE activation command
-            activate_cmd = f"install add file {image_name} activate commit"
+            # Get hardware model from device
+            try:
+                model_output = device_conn.execute("show version | include Processor", timeout=30)
+                model_output_str = str(model_output)
+                # Extract model from output (e.g., "Cisco C9KV-UADP-8P (VXE) processor")
+                import re
+                model_match = re.search(r'Cisco\s+([A-Z0-9-]+)', model_output_str)
+                device_model = model_match.group(1) if model_match else None
+                self.device_info['hardware_model'] = device_model
+            except Exception as e:
+                self.errors.append(f"Could not get hardware model: {e}")
+                device_model = None
 
+            # Match device model to profile
+            from .device_profiles import match_model_to_profile, get_upgrade_command
+            profile = None
+            if device_model:
+                profile = match_model_to_profile(device_model, 'cisco')
+
+            # Build activation command
+            activate_cmd = None
+            if profile:
+                # Use profile-specific command
+                activate_cmd = get_upgrade_command('cisco', profile.get('model'), 'install_add')
+                self.device_info['device_profile'] = profile
+                self.device_info['profile_model'] = profile.get('model')
+            else:
+                # Fallback to standard IOS-XE command
+                activate_cmd = f"install add file {image_name} activate commit"
+
+            if not activate_cmd:
+                self.stage_results['activate'] = {
+                    'success': False,
+                    'message': 'Could not build activation command'
+                }
+                self.errors.append('activate failed: could not build command')
+                self.failed_stage = 'activate'
+                return self
+
+            # Execute activation command
             output = device_conn.execute(activate_cmd, timeout=300)
 
+            # Check if activation was successful
             if "installed" in str(output).lower() or "commit" in str(output).lower():
                 self.stage_results['activate'] = {
                     'success': True,
-                    'message': 'Firmware activated successfully'
+                    'message': 'Firmware activated successfully',
+                    'command': activate_cmd,
+                    'profile': profile.get('model') if profile else None
                 }
             else:
                 self.stage_results['activate'] = {
                     'success': False,
-                    'message': f'Activation failed: {output}'
+                    'message': f'Activation failed: {output}',
+                    'command': activate_cmd
                 }
                 self.errors.append(f"activate failed: {output}")
                 self.failed_stage = 'activate'
