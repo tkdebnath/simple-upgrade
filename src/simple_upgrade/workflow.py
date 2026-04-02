@@ -304,10 +304,20 @@ class UpgradeWorkflow:
 
             # Show commands to run
             commands = {
+                'show_ip_interface_brief': 'show ip interface brief',
                 'show_version': 'show version',
                 'show_inventory': 'show inventory',
-                'show_run': 'show running-config',
-                'show_file_systems': 'show file systems',
+                'show_interface_description': 'show interface description',
+                'show_cdp_neighbors': 'show cdp neighbors',
+                'show_ip_route_summary': 'show ip route summary',
+                'show_ip_bgp_summary': 'show ip bgp summary',
+                'show_ip_ospf_neighbor': 'show ip ospf neighbor',
+                'show_standby_brief': 'show standby brief',
+                'show_logging': 'show logging | last 50',
+                'show_processes_cpu': 'show processes cpu sorted | exclude 0.00',
+                'show_environment': 'show environment all',
+                'show_mac_address_table': 'show mac address-table',
+                'show_interfaces_status': 'show interfaces status',
             }
 
             for cmd_name, cmd in commands.items():
@@ -499,10 +509,20 @@ class UpgradeWorkflow:
 
             # Show commands to run
             commands = {
+                'show_ip_interface_brief': 'show ip interface brief',
                 'show_version': 'show version',
                 'show_inventory': 'show inventory',
-                'show_run': 'show running-config',
-                'show_file_systems': 'show file systems',
+                'show_interface_description': 'show interface description',
+                'show_cdp_neighbors': 'show cdp neighbors',
+                'show_ip_route_summary': 'show ip route summary',
+                'show_ip_bgp_summary': 'show ip bgp summary',
+                'show_ip_ospf_neighbor': 'show ip ospf neighbor',
+                'show_standby_brief': 'show standby brief',
+                'show_logging': 'show logging | last 50',
+                'show_processes_cpu': 'show processes cpu sorted | exclude 0.00',
+                'show_environment': 'show environment all',
+                'show_mac_address_table': 'show mac address-table',
+                'show_interfaces_status': 'show interfaces status',
             }
 
             for cmd_name, cmd in commands.items():
