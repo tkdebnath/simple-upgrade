@@ -40,11 +40,19 @@ def distribute_image(connection, platform: str, file_server: Dict[str, Any], gol
     image_name = golden_image.get('image_name', '')
     server_ip = file_server.get('ip', '')
     base_path = file_server.get('base_path', '')
-    # source_interface is now passed as a parameter from workflow
 
     if not image_name or not server_ip:
         result['message'] = 'Missing image name or file server information'
         return result
+
+    # Configure HTTP client source interface if specified
+    if source_interface:
+        try:
+            config_cmd = f"ip http client source-interface {source_interface}"
+            connection.execute(config_cmd, timeout=30)
+        except Exception as e:
+            result['message'] = f'Failed to configure HTTP source interface: {e}'
+            return result
 
     # Build copy command based on protocol and platform
     copy_cmd = _build_copy_command(platform, protocol, server_ip, base_path, image_name, source_interface)
