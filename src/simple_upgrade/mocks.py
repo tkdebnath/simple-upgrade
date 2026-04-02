@@ -324,83 +324,24 @@ class MockUpgradeWorkflow:
         self._init_stages()
 
     def _get_manufacturer(self) -> str:
-        """Get manufacturer from device info."""
-        if hasattr(self.device, 'manufacturer') and self.device.manufacturer:
-            return self.device.manufacturer
-        # Try to infer from platform
-        platform = self.device.device_type or ''
-        if 'cisco' in platform.lower():
+        """Derive manufacturer from platform (device_type), not hardware model."""
+        platform = (self.device.device_type or '').lower()
+        if 'cisco' in platform:
             return 'Cisco'
-        elif 'juniper' in platform.lower() or 'junos' in platform.lower():
+        elif 'juniper' in platform or 'junos' in platform:
             return 'Juniper'
-        elif 'arista' in platform.lower():
+        elif 'arista' in platform or 'eos' in platform:
             return 'Arista'
         return 'Unknown'
 
     def _get_model(self) -> str:
-        """Get model from device info or infer from device_type."""
-        if hasattr(self.device, 'model') and self.device.model:
-            return self.device.model
-
-        # Infer model from device_type
-        platform = (self.device.device_type or '').lower()
-
-        # Cisco models
-        if 'cisco' in platform:
-            if '9300' in platform or 'c9300' in platform:
-                return 'C9300'
-            elif '9400' in platform or 'c9400' in platform:
-                return 'C9400'
-            elif '9500' in platform or 'c9500' in platform:
-                return 'C9500'
-            elif '4400' in platform or 'isr4400' in platform:
-                return 'ISR4400'
-            elif '4300' in platform or 'isr4300' in platform:
-                return 'ISR4300'
-            elif 'n9k' in platform or 'nx9000' in platform:
-                return 'N9K'
-            # NX-OS disabled
-            else:
-                return 'C9300'  # Default Cisco model
-
-        # Juniper models
-        elif 'juniper' in platform or 'junos' in platform:
-            if 'mx' in platform or 'mx' in platform:
-                return 'MX'
-            elif 'qfx' in platform or 'qfx' in platform:
-                return 'QFX'
-            elif 'srx' in platform or 'srx' in platform:
-                return 'SRX'
-            elif 'ptx' in platform or 'ptx' in platform:
-                return 'PTX'
-            else:
-                return 'MX'  # Default Juniper model
-
-        # Arista models
-        elif 'arista' in platform or 'eos' in platform:
-            if '7050' in platform or '7050' in platform:
-                return '7050'
-            elif '7280' in platform or '7280' in platform:
-                return '7280'
-            elif '7500' in platform or '7500' in platform:
-                return '7500'
-            else:
-                return '7050'  # Default Arista model
-
-        return 'Unknown'
+        """Get hardware model from device.model (set by sync). Never infer from platform."""
+        # device.model is populated after sync(); fall back to None if not yet available
+        return getattr(self.device, 'model', None) or 'Unknown'
 
     def _get_platform(self) -> str:
-        """Get platform from device info."""
-        if hasattr(self.device, 'platform') and self.device.platform:
-            return self.device.platform
-        platform = self.device.device_type or ''
-        if 'cisco' in platform.lower():
-            return 'cisco_iosxe'
-        elif 'juniper' in platform.lower() or 'junos' in platform.lower():
-            return 'juniper_junos'
-        elif 'arista' in platform.lower():
-            return 'arista_eos'
-        return 'cisco_iosxe'
+        """Get software platform — this IS device_type (cisco_iosxe, cisco_xe, etc.)."""
+        return self.device.device_type or 'cisco_iosxe'
 
     def _init_stages(self):
         """Initialize mock stages."""
@@ -663,82 +604,23 @@ class DryRunUpgradeWorkflow:
         self._init_stages()
 
     def _get_manufacturer(self) -> str:
-        """Get manufacturer from device info."""
-        if hasattr(self.device, 'manufacturer') and self.device.manufacturer:
-            return self.device.manufacturer
-        platform = self.device.device_type or ''
-        if 'cisco' in platform.lower():
+        """Derive manufacturer from platform (device_type), not hardware model."""
+        platform = (self.device.device_type or '').lower()
+        if 'cisco' in platform:
             return 'Cisco'
-        elif 'juniper' in platform.lower() or 'junos' in platform.lower():
+        elif 'juniper' in platform or 'junos' in platform:
             return 'Juniper'
-        elif 'arista' in platform.lower():
+        elif 'arista' in platform or 'eos' in platform:
             return 'Arista'
         return 'Unknown'
 
     def _get_model(self) -> str:
-        """Get model from device info or infer from device_type."""
-        if hasattr(self.device, 'model') and self.device.model:
-            return self.device.model
-
-        # Infer model from device_type
-        platform = (self.device.device_type or '').lower()
-
-        # Cisco models
-        if 'cisco' in platform:
-            if '9300' in platform or 'c9300' in platform:
-                return 'C9300'
-            elif '9400' in platform or 'c9400' in platform:
-                return 'C9400'
-            elif '9500' in platform or 'c9500' in platform:
-                return 'C9500'
-            elif '4400' in platform or 'isr4400' in platform:
-                return 'ISR4400'
-            elif '4300' in platform or 'isr4300' in platform:
-                return 'ISR4300'
-            elif 'n9k' in platform or 'nx9000' in platform:
-                return 'N9K'
-            # NX-OS disabled
-            else:
-                return 'C9300'  # Default Cisco model
-
-        # Juniper models
-        elif 'juniper' in platform or 'junos' in platform:
-            if 'mx' in platform or 'mx' in platform:
-                return 'MX'
-            elif 'qfx' in platform or 'qfx' in platform:
-                return 'QFX'
-            elif 'srx' in platform or 'srx' in platform:
-                return 'SRX'
-            elif 'ptx' in platform or 'ptx' in platform:
-                return 'PTX'
-            else:
-                return 'MX'  # Default Juniper model
-
-        # Arista models
-        elif 'arista' in platform or 'eos' in platform:
-            if '7050' in platform or '7050' in platform:
-                return '7050'
-            elif '7280' in platform or '7280' in platform:
-                return '7280'
-            elif '7500' in platform or '7500' in platform:
-                return '7500'
-            else:
-                return '7050'  # Default Arista model
-
-        return 'Unknown'
+        """Get hardware model from device.model (set by sync). Never infer from platform."""
+        return getattr(self.device, 'model', None) or 'Unknown'
 
     def _get_platform(self) -> str:
-        """Get platform from device info."""
-        if hasattr(self.device, 'platform') and self.device.platform:
-            return self.device.platform
-        platform = self.device.device_type or ''
-        if 'cisco' in platform.lower():
-            return 'cisco_iosxe'
-        elif 'juniper' in platform.lower() or 'junos' in platform.lower():
-            return 'juniper_junos'
-        elif 'arista' in platform.lower():
-            return 'arista_eos'
-        return 'cisco_iosxe'
+        """Get software platform — this IS device_type (cisco_iosxe, cisco_xe, etc.)."""
+        return self.device.device_type or 'cisco_iosxe'
 
     def _init_stages(self):
         """Initialize dry-run stages."""
