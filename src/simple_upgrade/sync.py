@@ -156,6 +156,26 @@ class SyncManager:
         elif connection_manager and connection_manager.device_type:
             self.platform = get_platform_for_library(connection_manager.device_type, 'scrapli')
 
+    def _send_command(self, command: str) -> str:
+        """
+        Send command based on the active channel type.
+
+        Returns:
+            Command output as string
+        """
+        conn = self.cm.get_active_channel()
+        output = ""
+
+        if conn == 'scrapli':
+            result = self.cm._scrapli_conn.send_command(command)
+            output = str(result.result)
+        elif conn == 'netmiko':
+            output = self.cm._netmiko_conn.send_command(command)
+        elif conn == 'unicon':
+            output = str(self.cm._unicon_conn.execute(command))
+
+        return self._normalize_output(output)
+
     def _normalize_output(self, output: str) -> str:
         """Clean up command output."""
         if isinstance(output, list):
@@ -170,7 +190,7 @@ class SyncManager:
             Software version string
         """
         commands = get_device_commands(self.platform)
-        output = self.cm.send_command(commands['version'])
+        output = self._send_command(commands['version'])
         return self._parse_version(output)
 
     def _parse_version(self, output: str) -> str:
@@ -234,7 +254,7 @@ class SyncManager:
             Dictionary with inventory details
         """
         commands = get_device_commands(self.platform)
-        output = self.cm.send_command(commands['inventory'])
+        output = self._send_command(commands['inventory'])
         return self._parse_inventory(output)
 
     def _parse_inventory(self, output: str) -> Dict[str, str]:
@@ -268,7 +288,7 @@ class SyncManager:
     def fetch_hostname(self) -> str:
         """Fetch the device hostname."""
         commands = get_device_commands(self.platform)
-        output = self.cm.send_command(commands['version'])
+        output = self._send_command(commands['version'])
         output = self._normalize_output(output)
 
         match = re.search(r'hostname\s+(\S+)', output)
@@ -308,7 +328,7 @@ class SyncManager:
         commands = get_device_commands(self.platform)
 
         # Fetch version
-        version_output = self.cm.send_command(commands['version'])
+        version_output = self._send_command(commands['version'])
         self.info['version'] = self._parse_version(version_output)
 
         # Fetch hostname
@@ -327,7 +347,7 @@ class SyncManager:
 
         # Fetch additional info if available
         try:
-            uptime_output = self.cm.send_command("show version")
+            uptime_output = self._send_command("show version")
             uptime_output = self._normalize_output(uptime_output)
 
             # Parse uptime
@@ -391,7 +411,7 @@ class SyncManager:
 
         # Try to get flash and memory size from inventory
         try:
-            inventory_output = self.cm.send_command("show inventory")
+            inventory_output = self._send_command("show inventory")
             inventory_output = self._normalize_output(inventory_output)
 
             # Parse flash size
