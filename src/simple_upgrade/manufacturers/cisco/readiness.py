@@ -145,118 +145,105 @@ def check_readiness(connection, channel: str, platform: str, commands: Dict[str,
         result['errors'].append('Device not connected')
         return result
 
-    # Use connection as context manager if it supports __enter__ and __exit__
-    if hasattr(connection, '__enter__') and hasattr(connection, '__exit__'):
+    # Check if connection is already open (managed externally)
+    # Use context manager only if connection is not already open
+    needs_closing = False
+    if hasattr(connection, 'is_open'):
+        needs_closing = not connection.is_open
+    elif hasattr(connection, '_connected'):
+        needs_closing = not connection._connected
+
+    if needs_closing and hasattr(connection, '__enter__') and hasattr(connection, '__exit__'):
         with connection:
-
-            # Check 1: using golden image file size determine if free space is enough or not
-            image_size = golden_image.get('image_size', 0)
-
-            if platform_lower in ['cisco_ios', 'cisco_iosxe']:
-                # Check 2: Get all flash storages
-                show_file_systems = connection.send_command("show file systems")
-                show_file_systems_parsed = show_file_systems.genie_parse_output()
-                if show_file_systems_parsed:
-                    free_space = flash_free_space(show_file_systems_parsed, image_size)
-                    if not free_space:
-                        result['errors'].append('Insufficient flash space')
-                        return result
-                    result['messages'].append('Sufficient flash space')
-
-                # Check 3: if upgrade or downgrade
-                show_version = connection.send_command("show version")
-                show_version_parsed = show_version.genie_parse_output()
-                if show_version_parsed and show_version_parsed.get('version', {}).get('version', ''):
-                    current_version = show_version_parsed['version']['version']
-                    target_version = golden_image.get('version', '')
-                    if target_version:
-                        is_equal = compare_version_loose(current_version, "==", target_version)
-                        if is_equal:
-                            result['errors'].append('Device already running target version')
-                            return result
-
-                        is_less = compare_version_loose(current_version, "<", target_version)
-                        if is_less:
-                            result['messages'].append('Upgrade')
-                        else:
-                            result['errors'].append('Downgrade not allowed')
-                            return result
-
-                # Check 4: Get flash space
-                flash_output = connection.send_command(commands.get('dir', 'dir'))
-                flash_output_str = str(flash_output.result)
-                flash_info = _parse_flash_space(flash_output_str)
-                result['messages'].append(f"Flash space: {flash_info['free']} free of {flash_info['total']}")
-            else:
-                # For other platforms, use the fallback method
-                flash_output = connection.send_command(commands.get('dir', 'dir'))
-                flash_output_str = str(flash_output.result)
-                flash_info = _parse_flash_space(flash_output_str)
-                result['messages'].append(f"Flash space: {flash_info['free']} free of {flash_info['total']}")
-
-            # Check 5: Verify image size requirement
-            if image_size > 0:
-                if flash_info['free_bytes'] < image_size:
-                    result['errors'].append(f"Insufficient flash space. Need {image_size} bytes, have {flash_info['free_bytes']}")
-                    return result
-                result['messages'].append(f"Image size requirement met: {image_size} bytes available")
-
-            # Check 6: Verify current version is not same as golden image
-            version_output = connection.send_command(commands.get('show_version', 'show version'))
-            current_version = _parse_version(str(version_output.result), platform)
-
-            if current_version == golden_image.get('version'):
-                result['errors'].append(f"Device already running target version {golden_image['version']}")
-                return result
-
-            result['messages'].append(f"Current version: {current_version}, Target: {golden_image.get('version')}")
-
-            # Check 5: Check for any active sessions or locks
-            try:
-                config_output = connection.send_command("show configuration lock")
-                if "locked" in config_output.lower():
-                    result['errors'].append('Configuration database is locked')
-                    return result
-                result['messages'].append('No configuration locks detected')
-            except Exception:
-                result['messages'].append('Could not verify configuration lock status')
+            _run_readiness_checks(connection, platform_lower, golden_image, commands, result)
     else:
-        # Fallback: use connection without context manager
-        # Check 1: Get image size from golden image
-        image_size = golden_image.get('image_size', 0)
+        _run_readiness_checks(connection, platform_lower, golden_image, commands, result)
 
-        # Check 2: Get flash space
+    return result
+
+
+def _run_readiness_checks(connection, platform_lower, golden_image, commands, result):
+    """
+    Run readiness checks - shared between context manager and non-context manager paths.
+
+    Args:
+        connection: Active connection object
+        platform_lower: Lowercase platform name
+        golden_image: Golden image dictionary
+        commands: Command dictionary
+        result: Result dictionary to populate
+    """
+    # Check 1: using golden image file size determine if free space is enough or not
+    image_size = golden_image.get('image_size', 0)
+
+    if platform_lower in ['cisco_ios', 'cisco_iosxe']:
+        # Check 2: Get all flash storages
+        show_file_systems = connection.send_command("show file systems")
+        show_file_systems_parsed = show_file_systems.genie_parse_output()
+        if show_file_systems_parsed:
+            free_space = flash_free_space(show_file_systems_parsed, image_size)
+            if not free_space:
+                result['errors'].append('Insufficient flash space')
+                return
+            result['messages'].append('Sufficient flash space')
+
+        # Check 3: if upgrade or downgrade
+        show_version = connection.send_command("show version")
+        show_version_parsed = show_version.genie_parse_output()
+        if show_version_parsed and show_version_parsed.get('version', {}).get('version', ''):
+            current_version = show_version_parsed['version']['version']
+            target_version = golden_image.get('version', '')
+            if target_version:
+                is_equal = compare_version_loose(current_version, "==", target_version)
+                if is_equal:
+                    result['errors'].append('Device already running target version')
+                    return
+
+                is_less = compare_version_loose(current_version, "<", target_version)
+                if is_less:
+                    result['messages'].append('Upgrade')
+                else:
+                    result['errors'].append('Downgrade not allowed')
+                    return
+
+        # Check 4: Get flash space
+        flash_output = connection.send_command(commands.get('dir', 'dir'))
+        flash_output_str = str(flash_output.result)
+        flash_info = _parse_flash_space(flash_output_str)
+        result['messages'].append(f"Flash space: {flash_info['free']} free of {flash_info['total']}")
+    else:
+        # For other platforms, use the fallback method
         flash_output = connection.send_command(commands.get('dir', 'dir'))
         flash_output_str = str(flash_output.result)
         flash_info = _parse_flash_space(flash_output_str)
         result['messages'].append(f"Flash space: {flash_info['free']} free of {flash_info['total']}")
 
-        # Check 3: Verify image size requirement
-        if image_size > 0:
-            if flash_info['free_bytes'] < image_size:
-                result['errors'].append(f"Insufficient flash space. Need {image_size} bytes, have {flash_info['free_bytes']}")
-                return result
-            result['messages'].append(f"Image size requirement met: {image_size} bytes available")
+    # Check 5: Verify image size requirement
+    if image_size > 0:
+        if flash_info['free_bytes'] < image_size:
+            result['errors'].append(f"Insufficient flash space. Need {image_size} bytes, have {flash_info['free_bytes']}")
+            return
+        result['messages'].append(f"Image size requirement met: {image_size} bytes available")
 
-        # Check 4: Verify current version is not same as golden image
-        version_output = connection.send_command(commands.get('show_version', 'show version'))
-        current_version = _parse_version(str(version_output.result), platform)
+    # Check 6: Verify current version is not same as golden image
+    version_output = connection.send_command(commands.get('show_version', 'show version'))
+    current_version = _parse_version(str(version_output.result), platform_lower)
 
-        if current_version == golden_image.get('version'):
-            result['errors'].append(f"Device already running target version {golden_image['version']}")
-            return result
+    if current_version == golden_image.get('version'):
+        result['errors'].append(f"Device already running target version {golden_image['version']}")
+        return
 
-        result['messages'].append(f"Current version: {current_version}, Target: {golden_image.get('version')}")
+    result['messages'].append(f"Current version: {current_version}, Target: {golden_image.get('version')}")
 
-        # Check 5: Check for any active sessions or locks
-        try:
-            config_output = connection.send_command("show configuration lock")
-            if "locked" in config_output.lower():
-                result['errors'].append('Configuration database is locked')
-                return result
-            result['messages'].append('No configuration locks detected')
-        except Exception:
-            result['messages'].append('Could not verify configuration lock status')
+    # Check 7: Check for any active sessions or locks
+    try:
+        config_output = connection.send_command("show configuration lock")
+        if "locked" in config_output.lower():
+            result['errors'].append('Configuration database is locked')
+            return
+        result['messages'].append('No configuration locks detected')
+    except Exception:
+        result['messages'].append('Could not verify configuration lock status')
 
     # All checks passed
     result['ready'] = True
