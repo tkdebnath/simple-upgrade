@@ -64,7 +64,7 @@ def fetch_info(connection, channel: str, platform: str, commands: Dict[str, str]
     Args:
         connection: Active connection object
         channel: Channel name (e.g., scrapli)
-        platform: Platform name (cisco_ios, cisco_iosxe, cisco_nxos)
+        platform: Platform name (cisco_ios, cisco_iosxe)
         commands: Dictionary of commands to execute
 
     Returns:
@@ -82,7 +82,7 @@ def fetch_info(connection, channel: str, platform: str, commands: Dict[str, str]
 
     # Validate platform is Cisco
     platform_lower = platform.lower().replace('-', '_')
-    valid_cisco_platforms = ['cisco_ios', 'cisco_iosxe', 'cisco_nxos', 'cisco_xe', 'cisco_nexus']
+    valid_cisco_platforms = ['cisco_ios', 'cisco_iosxe', 'cisco_xe', 'cisco_nexus']
 
     if platform_lower not in valid_cisco_platforms:
         raise ValueError(
@@ -160,8 +160,6 @@ def fetch_info(connection, channel: str, platform: str, commands: Dict[str, str]
                 # Tacacs not configured or command failed
                 pass
 
-        elif platform_lower == 'cisco_nxos':
-            # not yet implemented
-            pass
+        # NX-OS disabled
 
     return info

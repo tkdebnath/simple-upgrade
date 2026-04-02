@@ -245,12 +245,9 @@ class UpgradePackage:
             sync_mgr = SyncManager(connection_manager=cm, platform=platform)
             self.device_info = sync_mgr.fetch_info()
 
-            # Update device_type if not set
+            # Update device_type if not set (NX-OS disabled)
             if not self.device_type and self.device_info.get('manufacturer') == 'Cisco':
-                if 'nx-os' in platform.lower():
-                    self.device_type = 'cisco_nxos'
-                else:
-                    self.device_type = 'cisco_xe'
+                self.device_type = 'cisco_xe'
 
             # Populate tacacs_source_interface from device_info if available
             if self.device_info.get('tacacs_source_interface'):

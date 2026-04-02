@@ -36,16 +36,7 @@ PLATFORM_MAPPINGS = {
         'netmiko': 'cisco_nxos',
         'unicon': 'nxos',
     },
-    'cisco_nxos': {
-        'scrapli': 'cisco_nxos',
-        'netmiko': 'cisco_nxos',
-        'unicon': 'nxos',
-    },
-    'nxos': {
-        'scrapli': 'cisco_nxos',
-        'netmiko': 'cisco_nxos',
-        'unicon': 'nxos',
-    },
+    # NX-OS disabled
     'juniper-junos': {
         'scrapli': 'juniper_junos',
         'netmiko': 'juniper_junos',
@@ -131,11 +122,7 @@ DEVICE_COMMANDS = {
         'inventory': 'show inventory',
         'show_tacacs': 'show run | include tacacs',
     },
-    'cisco_nxos': {
-        'version': 'show version',
-        'inventory': 'show inventory',
-        'show_tacacs': 'show run | include tacacs',
-    },
+    # NX-OS disabled
 }
 
 

@@ -14,7 +14,7 @@ def activate_image(connection, platform: str, golden_image: Dict[str, Any]) -> D
 
     Args:
         connection: Active connection object (unicon)
-        platform: Platform name (cisco_iosxe, cisco_nxos)
+        platform: Platform name (cisco_iosxe)
         golden_image: Dictionary with golden image information
 
     Returns:
@@ -35,11 +35,8 @@ def activate_image(connection, platform: str, golden_image: Dict[str, Any]) -> D
         result['message'] = 'Missing image name for activation'
         return result
 
-    # Build activation command based on platform
-    if 'nx-os' in platform.lower():
-        activate_cmd = _build_nxos_activate_cmd(image_name)
-    else:
-        activate_cmd = _build_iosxe_activate_cmd(image_name)
+    # NX-OS disabled - only IOS-XE activation
+    activate_cmd = _build_iosxe_activate_cmd(image_name)
 
     result['command'] = activate_cmd
 
@@ -124,16 +121,7 @@ def _check_activation_success(output: str, platform: str) -> bool:
         if indicator.lower() in output.lower():
             return True
 
-    # Platform-specific indicators
-    if 'nx-os' in platform.lower():
-        nxos_success = [
-            'installation completed',
-            'image activated',
-            'active image',
-        ]
-        for indicator in nxos_success:
-            if indicator.lower() in output.lower():
-                return True
+    # NX-OS disabled - removed platform-specific success indicators
 
     # IOS-XE specific
     iosxe_success = [

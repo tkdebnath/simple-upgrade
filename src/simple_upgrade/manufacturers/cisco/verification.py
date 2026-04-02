@@ -13,7 +13,7 @@ def verify_version(connection, platform: str, commands: Dict[str, str], golden_i
 
     Args:
         connection: Active connection object (scrapli)
-        platform: Platform name (cisco_iosxe, cisco_nxos)
+        platform: Platform name (cisco_iosxe)
         commands: Dictionary of commands to execute
         golden_image: Dictionary with golden image information
 
@@ -63,16 +63,7 @@ def _parse_version(output: str, platform: str) -> str:
 
     import re
 
-    # Platform-specific patterns
-    if 'nx-os' in platform.lower():
-        nxos_patterns = [
-            r'NXOS\s+Version\s+(\S+)',
-            r'Software\s+version:\s+(\S+)',
-        ]
-        for pattern in nxos_patterns:
-            match = re.search(pattern, output, re.IGNORECASE)
-            if match:
-                return match.group(1)
+    # NX-OS disabled - only generic Cisco patterns
 
     # Generic Cisco patterns
     patterns = [

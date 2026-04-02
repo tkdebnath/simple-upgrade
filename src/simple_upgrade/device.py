@@ -44,7 +44,7 @@ class Device:
             timeout: Connection timeout in seconds
             enable_mode: Whether to enter enable mode
             enable_password: Enable password if required
-            device_type: Device type/platform (e.g., cisco_ios, cisco_xe, cisco_nxos)
+            device_type: Device type/platform (e.g., cisco_ios, cisco_xe)
                         Required for scrapli to determine the correct driver.
             scrapli_args: Additional arguments to pass to scrapli Scrapli() constructor
             **kwargs: Additional keyword arguments (e.g., auth_passphrase)

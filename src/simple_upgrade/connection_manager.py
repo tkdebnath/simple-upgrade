@@ -66,7 +66,7 @@ class ConnectionManager:
             host: IP address or hostname of the device
             username: SSH username
             password: SSH password
-            device_type: Device type/platform (e.g., cisco_ios, cisco_xe, cisco_nxos)
+            device_type: Device type/platform (e.g., cisco_ios, cisco_xe)
             port: SSH port (default: 22)
             timeout: Command timeout in seconds (default: 30)
             connection_timeout: Connection timeout in seconds (default: 30)

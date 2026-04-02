@@ -369,7 +369,6 @@ class Checks:
         try:
             commands = {
                 'cisco_iosxe': 'dir',
-                'cisco_nxos': 'show disk: | include total',
                 'juniper_junos': 'show system storage',
                 'arista_eos': 'show disk usage',
             }
@@ -451,7 +450,6 @@ class Checks:
         try:
             commands = {
                 'cisco_iosxe': 'show inventory',
-                'cisco_nxos': 'show inventory',
                 'juniper_junos': 'show chassis hardware',
                 'arista_eos': 'show inventory',
             }
@@ -488,7 +486,6 @@ class Checks:
         try:
             commands = {
                 'cisco_iosxe': 'show licenses',
-                'cisco_nxos': 'show license',
                 'juniper_junos': 'show system licenses',
                 'arista_eos': 'show licenses',
             }

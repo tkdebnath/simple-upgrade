@@ -27,7 +27,7 @@ class Checks:
 
         Args:
             connection: Active connection object (scrapli)
-            platform: Platform name (cisco_ios, cisco_iosxe, cisco_nxos)
+            platform: Platform name (cisco_ios, cisco_iosxe)
         """
         self.connection = connection
         self.platform = platform.lower().replace('-', '_')

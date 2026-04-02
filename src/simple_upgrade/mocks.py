@@ -359,8 +359,7 @@ class MockUpgradeWorkflow:
                 return 'ISR4300'
             elif 'n9k' in platform or 'nx9000' in platform:
                 return 'N9K'
-            elif 'nx-os' in platform:
-                return 'Nexus'
+            # NX-OS disabled
             else:
                 return 'C9300'  # Default Cisco model
 
@@ -395,10 +394,8 @@ class MockUpgradeWorkflow:
         if hasattr(self.device, 'platform') and self.device.platform:
             return self.device.platform
         platform = self.device.device_type or ''
-        if 'cisco' in platform.lower() and 'nx-os' not in platform.lower():
+        if 'cisco' in platform.lower():
             return 'cisco_iosxe'
-        elif 'cisco' in platform.lower() and 'nx-os' in platform.lower():
-            return 'cisco_nxos'
         elif 'juniper' in platform.lower() or 'junos' in platform.lower():
             return 'juniper_junos'
         elif 'arista' in platform.lower():
@@ -700,8 +697,7 @@ class DryRunUpgradeWorkflow:
                 return 'ISR4300'
             elif 'n9k' in platform or 'nx9000' in platform:
                 return 'N9K'
-            elif 'nx-os' in platform:
-                return 'Nexus'
+            # NX-OS disabled
             else:
                 return 'C9300'  # Default Cisco model
 
@@ -736,10 +732,8 @@ class DryRunUpgradeWorkflow:
         if hasattr(self.device, 'platform') and self.device.platform:
             return self.device.platform
         platform = self.device.device_type or ''
-        if 'cisco' in platform.lower() and 'nx-os' not in platform.lower():
+        if 'cisco' in platform.lower():
             return 'cisco_iosxe'
-        elif 'cisco' in platform.lower() and 'nx-os' in platform.lower():
-            return 'cisco_nxos'
         elif 'juniper' in platform.lower() or 'junos' in platform.lower():
             return 'juniper_junos'
         elif 'arista' in platform.lower():
@@ -1220,11 +1214,8 @@ def _build_manufacturer_copy_command(manufacturer: str, platform: str, protocol:
         image_filename = image_filename[11:]  # Remove 'bootflash:/'
 
     if manufacturer == 'Cisco':
-        # Cisco uses copy protocol://server/path/image dest
-        if 'nx-os' in platform.lower():
-            dest_path = f"bootflash:/{image_name}"
-        else:
-            dest_path = f"flash:/{image_name}"
+        # Cisco uses copy protocol://server/path/image dest (NX-OS disabled)
+        dest_path = f"flash:/{image_name}"
 
         if protocol == 'http' or protocol == 'https':
             return f"copy {protocol}://{server_ip}/{base_path}/{image_filename} {dest_path}"
@@ -1269,12 +1260,8 @@ def _build_manufacturer_activate_command(manufacturer: str, platform: str, image
         Platform-specific activation command
     """
     if manufacturer == 'Cisco':
-        # Cisco IOS-XE uses: install add file <image> activate commit
-        # Cisco NX-OS uses: install image <image>
-        if 'nx-os' in platform.lower():
-            return f"install image {image_name}"
-        else:
-            return f"install add file {image_name} activate commit"
+        # Cisco IOS-XE uses: install add file <image> activate commit (NX-OS disabled)
+        return f"install add file {image_name} activate commit"
 
     elif manufacturer == 'Juniper':
         # Juniper uses: request system software add <image> reboot

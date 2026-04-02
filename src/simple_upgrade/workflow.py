@@ -491,7 +491,7 @@ class UpgradeManager:
             username: SSH username
             password: SSH password
             port: SSH port
-            device_type: Device type/platform (e.g., cisco_ios, cisco_xe, cisco_nxos)
+            device_type: Device type/platform (e.g., cisco_ios, cisco_xe)
                         Required for scrapli connection.
             golden_image: Golden image information
             file_server: File server information

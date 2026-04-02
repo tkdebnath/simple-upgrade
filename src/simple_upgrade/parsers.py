@@ -95,7 +95,7 @@ def parse_show_version(raw_output: str, platform: str = 'cisco_ios') -> Dict[str
 
     Args:
         raw_output: Raw output from 'show version' command
-        platform: Device platform (cisco_ios, cisco_nxos, etc.)
+        platform: Device platform (cisco_ios, cisco_iosxe, etc.)
 
     Returns:
         Dictionary with parsed device information
