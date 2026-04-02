@@ -493,6 +493,28 @@ class UpgradePackage:
             except Exception:
                 pass
 
+            # Configure boot system commands
+            config_cmd = [
+                "no boot system",
+                "boot system flash:packages.conf",
+                "no boot manual",
+                "no system ignore startupconfig switch all",
+            ]
+            try:
+                device_conn.execute('configure terminal', timeout=30)
+                for cmd in config_cmd:
+                    device_conn.execute(cmd, timeout=30)
+                device_conn.execute('end', timeout=30)
+                device_conn.execute('write memory', timeout=30)
+            except Exception as e:
+                self.stage_results['activate'] = {
+                    'success': False,
+                    'message': f'Failed to configure boot system: {e}'
+                }
+                self.errors.append(f"activate failed: boot config error - {e}")
+                self.failed_stage = 'activate'
+                return self
+
             # Get hardware model from device
             try:
                 model_output = device_conn.execute("show version | include Processor", timeout=30)
