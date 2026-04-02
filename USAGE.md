@@ -13,6 +13,8 @@ This guide covers all usage patterns for the simple-upgrade library.
 - [Execution Path Tracking](#execution-path-tracking)
 - [Device Model Inference](#device-model-inference)
 
+**Note:** For Cisco devices, only c9300 series models are currently supported.
+
 ---
 
 ## Quick Start
@@ -345,14 +347,13 @@ The library automatically infers the device model from `device_type` - no need t
 
 ### Cisco Models
 
+**Note:** Only c9300 series models are currently supported for Cisco IOS-XE.
+
 | Device Type | Inferred Model |
 |-------------|----------------|
 | `cisco_xe_c9300` | C9300 |
-| `cisco_xe_c9400` | C9400 |
-| `cisco_xe_c9500` | C9500 |
-| `cisco_xe_isr4400` | ISR4400 |
-| `cisco_xe_isr4300` | ISR4300 |
-| `cisco_nxos_n9k` | N9K |
+| `cisco_xe_c9300l` | C9300L |
+| `cisco_xe_c9300x` | C9300X |
 | `cisco_xe` (default) | C9300 |
 
 ### Juniper Models
@@ -380,13 +381,14 @@ The library automatically infers the device model from `device_type` - no need t
 from simple_upgrade import UpgradeManager
 
 # Model is automatically inferred from device_type
+# For Cisco, only c9300 series is supported
 manager = UpgradeManager(
     host="192.168.1.1",
     username="admin",
     password="password",
-    device_type="cisco_xe_c9400",  # Model inferred as C9400
+    device_type="cisco_xe_c9300",  # Model inferred as C9300
     connection_mode="mock",
-    golden_image={"version": "17.9.4", "image_name": "flash:c9400.bin"},
+    golden_image={"version": "17.9.4", "image_name": "flash:c9300.bin"},
     file_server={"ip": "10.0.0.10", "protocol": "http", "base_path": "/tftpboot"}
 )
 
@@ -595,3 +597,53 @@ for step in result['execution_path']:
 | Execution path | Yes | Yes | No |
 | Manufacturer-specific | Yes | Yes | Yes |
 | Model inference | Yes | Yes | Yes |
+
+---
+
+## UpgradePackage Class
+
+For a more object-oriented approach with shared state across stages:
+
+```python
+from simple_upgrade import UpgradePackage
+
+upgrade = UpgradePackage(
+    host="192.168.1.1",
+    username="admin",
+    password="password",
+    device_type="cisco_xe",
+    golden_image={"version": "17.9.4", "image_name": "flash:c9300.bin"},
+    file_server={"ip": "10.0.0.10", "protocol": "http", "base_path": "/tftpboot"}
+)
+
+upgrade.sync()           # Updates device_info
+upgrade.readiness()      # Updates readiness_result
+upgrade.pre_check()      # Updates pre_check_result
+upgrade.activate()       # Updates activate_result
+upgrade.wait()           # Updates wait_result
+upgrade.post_check()     # Updates post_check_result
+upgrade.verification()   # Updates verification_result
+
+if upgrade.success:
+    print("Upgrade successful")
+else:
+    print(f"Failed at stage: {upgrade.failed_stage}")
+```
+
+## Device Information Attributes
+
+The `SyncManager.fetch_info()` returns:
+
+| Attribute | Description |
+|-----------|-------------|
+| `manufacturer` | Device manufacturer |
+| `model` | Device model |
+| `version` | Software version |
+| `hostname` | Device hostname |
+| `serial_number` | Device serial number |
+| `uptime` | Device uptime |
+| `boot_method` | Boot image path |
+| `config_register` | Configuration register value |
+| `tacacs_source_interface` | TACACS+ source interface |
+| `flash_size` | Flash memory size |
+| `memory_size` | System memory size |

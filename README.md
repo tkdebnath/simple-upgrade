@@ -168,7 +168,7 @@ print(f"Version: {device_info['version']}")
 
 ### 3. Sync Device Information (Detailed)
 
-Use the `SyncManager` to fetch detailed device information including version, model, uptime, boot method, serial, and more:
+Use the `SyncManager` to fetch detailed device information including version, model, uptime, boot method, serial, and more. Also includes `tacacs_source_interface` if configured.
 
 ```python
 from simple_upgrade import ConnectionManager, SyncManager
@@ -198,6 +198,7 @@ print(f"Uptime: {device_info['uptime']}")
 print(f"Boot Method: {device_info['boot_method']}")
 print(f"Flash Size: {device_info['flash_size']}")
 print(f"Memory Size: {device_info['memory_size']}")
+print(f"TACACS Source Interface: {device_info['tacacs_source_interface']}")
 ```
 
 ### 4. Run Upgrade
@@ -232,11 +233,12 @@ The upgrade process follows these stages:
 ## Supported Devices
 
 - Cisco IOS
-- Cisco IOS-XE
-- Cisco NX-OS
+- Cisco IOS-XE (recommended: c9300 series only)
 - Juniper Junos
 - Arista EOS
 - Palo Alto PAN-OS
+
+**Note:** For Cisco devices, only c9300 series models are currently supported. The device_type must be `cisco_iosxe`.
 
 ## Manufacturer-Specific Behavior
 
@@ -251,13 +253,15 @@ The library automatically detects the manufacturer and uses manufacturer-specifi
 
 ## Device Model Inference
 
-The library automatically infers the device model from `device_type`. No need to specify exact model:
+The library automatically infers the device model from `device_type`. No need to specify exact model.
+
+**Note:** For Cisco IOS-XE, only c9300 series models are supported (C9300, C9300L, C9300X, etc.).
 
 | Device Type | Inferred Model |
 |-------------|----------------|
 | `cisco_xe_c9300` | C9300 |
-| `cisco_xe_c9400` | C9400 |
-| `cisco_xe_c9500` | C9500 |
+| `cisco_xe_c9300l` | C9300L |
+| `cisco_xe_c9300x` | C9300X |
 | `juniper_junos_mx` | MX |
 | `arista_eos_7280` | 7280 |
 
@@ -323,9 +327,11 @@ using different libraries.
 
 | Channel | Library |
 |---------|---------|
-| `scrapli` | scrapli |
-| `netmiko` | netmiko |
-| `unicon` | genie/pyats |
+| `scrapli` | scrapli (SSH connections) |
+| `netmiko` | netmiko (classic network automation) |
+| `unicon` | genie/pyats (device operations) |
+
+**Note:** The package primarily uses scrapli for connections. Unicon is used internally for file distribution and activation commands.
 
 ## SyncManager
 
@@ -381,6 +387,54 @@ device_info = sync_device(
     password="password",
     platform="cisco_iosxe"
 )
+```
+
+## SyncManager Output
+
+The `SyncManager.fetch_info()` returns the following device information:
+
+| Attribute | Description |
+|-----------|-------------|
+| `manufacturer` | Device manufacturer (Cisco, Juniper, Arista) |
+| `model` | Device model |
+| `version` | Software version |
+| `hostname` | Device hostname |
+| `serial_number` | Device serial number |
+| `uptime` | Device uptime |
+| `boot_method` | Boot image path |
+| `config_register` | Configuration register |
+| `tacacs_source_interface` | TACACS+ source interface (if configured) |
+| `flash_size` | Flash memory size |
+| `memory_size` | System memory size |
+
+## UpgradePackage Class
+
+For a more object-oriented approach, use the `UpgradePackage` class which maintains shared state across stages:
+
+```python
+from simple_upgrade import UpgradePackage
+
+upgrade = UpgradePackage(
+    host="192.168.1.1",
+    username="admin",
+    password="password",
+    device_type="cisco_xe",
+    golden_image={"version": "17.9.4", "image_name": "flash:c9300.bin"},
+    file_server={"ip": "10.0.0.10", "protocol": "http", "base_path": "/tftpboot"}
+)
+
+upgrade.sync()           # Updates device_info
+upgrade.readiness()      # Updates readiness_result
+upgrade.pre_check()      # Updates pre_check_result
+upgrade.activate()       # Updates activate_result
+upgrade.wait()           # Updates wait_result
+upgrade.post_check()     # Updates post_check_result
+upgrade.verification()   # Updates verification_result
+
+if upgrade.success:
+    print("Upgrade successful")
+else:
+    print(f"Failed at stage: {upgrade.failed_stage}")
 ```
 
 ## License
