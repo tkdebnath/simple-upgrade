@@ -522,3 +522,37 @@ class ConnectionManager:
             pass
 
         return None
+
+    def get_platform_from_connection(self, conn: Any) -> str:
+        """
+        Get the platform name from the connection object.
+
+        Args:
+            conn: Connection object (scrapli, netmiko, or unicon)
+
+        Returns:
+            Platform name (e.g., 'cisco_iosxe', 'cisco_ios', 'ios', 'junos', 'eos')
+        """
+        try:
+            module = getattr(conn, '__module__', '')
+
+            if 'scrapli' in module:
+                # Scrapli connections have genie_platform or textfsm_platform
+                if hasattr(conn, 'textfsm_platform'):
+                    return conn.textfsm_platform
+                if hasattr(conn, 'genie_platform'):
+                    return conn.genie_platform
+
+            elif 'netmiko' in module:
+                # Netmiko connections have device_type attribute
+                if hasattr(conn, 'device_type'):
+                    return conn.device_type
+
+            elif 'genie' in module or 'pyats' in module:
+                # Unicon connections have os attribute
+                if hasattr(conn, 'os'):
+                    return conn.os
+        except Exception:
+            pass
+
+        return 'unknown'
