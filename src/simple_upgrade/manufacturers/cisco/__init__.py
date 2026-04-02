@@ -6,6 +6,6 @@ Supports:
     - Cisco NX-OS (Nexus 9K, etc.)
 """
 
-from . import sync, readiness, distribution, activation, verification
+from . import sync, readiness, distribution, activation, verification, checks
 
-__all__ = ['sync', 'readiness', 'distribution', 'activation', 'verification']
+__all__ = ['sync', 'readiness', 'distribution', 'activation', 'verification', 'checks']
