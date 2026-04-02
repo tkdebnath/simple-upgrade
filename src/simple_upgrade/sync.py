@@ -5,51 +5,37 @@ This module determines the correct commands to execute based on the platform
 value from the centralized PLATFORM_MAPPINGS.
 """
 
-import re
-
 from typing import Dict, Any, Optional
 
 from .constants import PLATFORM_MAPPINGS, get_platform_for_library
 from .connection_manager import ConnectionManager, ConnectionError
 
 
-# Command mapping by platform family
+# Command mapping by platform family - basic commands for parsing
 DEVICE_COMMANDS = {
     'cisco_ios': {
         'version': 'show version',
         'inventory': 'show inventory',
-        'license': 'show license info',
-        'hardware': 'show hardware info',
     },
     'cisco_iosxe': {
         'version': 'show version',
         'inventory': 'show inventory',
-        'license': 'show license info',
-        'hardware': 'show hardware info',
     },
     'cisco_nxos': {
         'version': 'show version',
         'inventory': 'show inventory',
-        'license': 'show license',
-        'hardware': 'show hardware',
     },
     'juniper_junos': {
         'version': 'show version',
         'inventory': 'show chassis hardware',
-        'license': 'show system license',
-        'hardware': 'show system hardware',
     },
     'arista_eos': {
         'version': 'show version',
         'inventory': 'show inventory',
-        'license': 'show license',
-        'hardware': 'show hardware',
     },
     'paloalto_panos': {
         'version': 'show system info',
         'inventory': 'show hardware',
-        'license': 'show license',
-        'hardware': 'show hardware',
     },
 }
 
@@ -95,7 +81,6 @@ class SyncManager:
     Usage:
         from simple_upgrade import ConnectionManager, SyncManager
 
-        # Step 1: Get connection and platform
         cm = ConnectionManager(
             host="192.168.1.1",
             username="admin",
@@ -103,14 +88,10 @@ class SyncManager:
             device_type="cisco_xe"
         )
         conn = cm.get_connection(channel='scrapli')
-
-        # Step 2: Get platform from connection manager
         platform = cm.get_platform(channel='scrapli')
-        print(f"Using platform: {platform}")
 
-        # Step 3: Use platform to fetch device info
         sync = SyncManager(connection_manager=cm, platform=platform)
-        device_info = sync.fetch_info()
+        info = sync.fetch_info()
     """
 
     def __init__(
@@ -129,15 +110,15 @@ class SyncManager:
         self.cm = connection_manager
         self.platform = ''
 
-        # Device info storage
+        # Device info storage - populate with values for your textfsm parsing
         self.info: Dict[str, Any] = {
-            'manufacturer': None,
-            'model': None,
+            'hostname': None,
             'version': None,
             'current_version': None,
-            'hostname': None,
+            'model': None,
             'serial': None,
             'serial_number': None,
+            'manufacturer': None,
             'platform': None,
             'uptime': None,
             'boot_method': None,
@@ -148,7 +129,7 @@ class SyncManager:
             'memory_size': None,
         }
 
-        # Determine platform - use provided value or get from connection manager
+        # Determine platform
         if platform:
             self.platform = platform.lower().replace('-', '_')
         elif connection_manager and connection_manager._active_channel:
@@ -159,9 +140,6 @@ class SyncManager:
     def _send_command(self, command: str) -> str:
         """
         Send command based on the active channel type.
-
-        Returns:
-            Command output as string
         """
         conn = self.cm.get_active_channel()
         output = ""
@@ -174,136 +152,49 @@ class SyncManager:
         elif conn == 'unicon':
             output = str(self.cm._unicon_conn.execute(command))
 
-        return self._normalize_output(output)
+        return output
 
-    def _normalize_output(self, output: str) -> str:
-        """Clean up command output."""
-        if isinstance(output, list):
-            return '\n'.join(output)
-        return str(output)
-
-    def fetch_version(self) -> str:
+    def fetch_info(self) -> Dict[str, Any]:
         """
-        Fetch the software version from the device.
+        Fetch all device information.
 
         Returns:
-            Software version string
+            Complete device information dictionary
         """
         commands = get_device_commands(self.platform)
-        output = self._send_command(commands['version'])
-        return self._parse_version(output)
 
-    def _parse_version(self, output: str) -> str:
-        """
-        Parse the software version from show version output.
+        # Fetch version output
+        version_output = self._send_command(commands['version'])
+        self.info['version'] = version_output
 
-        Handles different vendor formats.
-        """
-        output = self._normalize_output(output)
+        # Fetch inventory output
+        inventory_output = self._send_command(commands['inventory'])
+        self.info['inventory'] = inventory_output
 
-        # Cisco IOS-XE format: Version 17.9.4
-        match = self._search_pattern(
-            output,
-            [
-                r'Version\s+(\S+)',
-                r'Version\s+(\S+)\s+\([^)]+\)',
-                r'IOS-XE\s+Version\s+(\S+)',
-                r'IOS\s+Version\s+(\S+)',
-            ]
-        )
-        if match:
-            return match
+        # Parse hostname from version output
+        self.info['hostname'] = self._parse_hostname(version_output)
 
-        # Juniper Junos format
-        match = self._search_pattern(
-            output,
-            [
-                r'Current\s+version:\s+(\S+)',
-                r'Kernel\s+version:\s+(\S+)',
-            ]
-        )
-        if match:
-            return match
+        # Parse manufacturer from platform
+        self.info['manufacturer'] = self._parse_manufacturer()
 
-        # Arista EOS format
-        match = self._search_pattern(
-            output,
-            [
-                r'Software image version:\s+(\S+)',
-                r'Cisco IOS Software,.*Version\s+(\S+)',
-            ]
-        )
-        if match:
-            return match
+        # Store raw platform
+        self.info['platform'] = self.platform
 
-        return 'Unknown'
+        # Store current version
+        self.info['current_version'] = self.info['version']
 
-    def _search_pattern(self, text: str, patterns: list) -> str:
-        """Search text for patterns and return first match."""
-        for pattern in patterns:
-            match = re.search(pattern, text)
-            if match:
-                return match.group(1)
-        return ''
+        return self.info
 
-    def fetch_inventory(self) -> Dict[str, str]:
-        """
-        Fetch device inventory information.
-
-        Returns:
-            Dictionary with inventory details
-        """
-        commands = get_device_commands(self.platform)
-        output = self._send_command(commands['inventory'])
-        return self._parse_inventory(output)
-
-    def _parse_inventory(self, output: str) -> Dict[str, str]:
-        """Parse inventory output."""
-        output = self._normalize_output(output)
-        inventory = {}
-
-        # Model/PID
-        patterns = {
-            'model': [
-                r'PID:\s*(\S+)',
-                r'Platform:\s*(\S+)',
-                r'Catalyst\s+(\d+)',
-            ],
-            'serial_number': [
-                r'System\s+Serial\s+Number:\s*(\S+)',
-                r'Serial\s+Number:\s*(\S+)',
-                r'SN:\s*(\S+)',
-            ],
-        }
-
-        for key, patterns_list in patterns.items():
-            for pattern in patterns_list:
-                match = re.search(pattern, output, re.IGNORECASE)
-                if match:
-                    inventory[key] = match.group(1)
-                    break
-
-        return inventory
-
-    def fetch_hostname(self) -> str:
-        """Fetch the device hostname."""
-        commands = get_device_commands(self.platform)
-        output = self._send_command(commands['version'])
-        output = self._normalize_output(output)
-
+    def _parse_hostname(self, output: str) -> str:
+        """Parse hostname from version output."""
+        import re
         match = re.search(r'hostname\s+(\S+)', output)
         if match:
             return match.group(1)
         return 'Unknown'
 
-    def fetch_manufacturer(self) -> str:
-        """
-        Determine manufacturer from platform or output.
-
-        Returns:
-            Manufacturer string
-        """
-        # Use platform-based detection
+    def _parse_manufacturer(self) -> str:
+        """Determine manufacturer from platform."""
         platform_lower = self.platform.lower()
 
         if 'cisco' in platform_lower:
@@ -316,127 +207,6 @@ class SyncManager:
             return 'Palo Alto Networks'
         else:
             return 'Unknown'
-
-    def fetch_info(self) -> Dict[str, Any]:
-        """
-        Fetch all device information.
-
-        Returns:
-            Complete device information dictionary
-        """
-        # Get all commands for this platform
-        commands = get_device_commands(self.platform)
-
-        # Fetch version
-        version_output = self._send_command(commands['version'])
-        self.info['version'] = self._parse_version(version_output)
-
-        # Fetch hostname
-        self.info['hostname'] = self.fetch_hostname()
-
-        # Fetch manufacturer
-        self.info['manufacturer'] = self.fetch_manufacturer()
-
-        # Fetch inventory
-        inventory = self.fetch_inventory()
-        self.info['model'] = inventory.get('model', '')
-        self.info['serial_number'] = inventory.get('serial_number', '')
-
-        # Store raw platform
-        self.info['platform'] = self.platform
-
-        # Fetch additional info if available
-        try:
-            uptime_output = self._send_command("show version")
-            uptime_output = self._normalize_output(uptime_output)
-
-            # Parse uptime
-            uptime_patterns = [
-                r'uptime is\s+([\d\w\s,]+?)(?:,|\s+since|$)',
-                r'uptime:\s+([\d\w\s,]+?)(?:,|\s+since|$)',
-            ]
-            for pattern in uptime_patterns:
-                match = re.search(pattern, uptime_output, re.IGNORECASE)
-                if match:
-                    self.info['uptime'] = match.group(1).strip()
-                    break
-        except Exception:
-            pass
-
-        # Fetch boot method and boot mode
-        self._fetch_boot_info(version_output)
-
-        # Store current version
-        self.info['current_version'] = self.info['version']
-
-        return self.info
-
-    def _fetch_boot_info(self, version_output: str):
-        """
-        Fetch boot method and boot mode from device.
-
-        Args:
-            version_output: Output from 'show version' command
-        """
-        version_output = self._normalize_output(version_output)
-
-        # Parse boot method
-        boot_patterns = [
-            r'config register is\s+(\S+)',
-            r'configuration register is\s+(\S+)',
-            r'Last reload reason:\s*(.+?)(?:\n|$)',
-        ]
-
-        for pattern in boot_patterns:
-            match = re.search(pattern, version_output, re.IGNORECASE)
-            if match:
-                value = match.group(1).strip()
-                if '0x' in value.lower():
-                    self.info['config_register'] = value
-                else:
-                    self.info['boot_method'] = value
-                break
-
-        # Parse boot mode
-        if 'nx-os' in version_output.lower() or 'nx-os' in self.platform:
-            # NX-OS specific
-            boot_match = re.search(r'Boot mode:\s*(\S+)', version_output, re.IGNORECASE)
-            if boot_match:
-                self.info['boot_mode'] = boot_match.group(1)
-        else:
-            # IOS/XE specific
-            boot_match = re.search(r'image file is\s+(\S+)', version_output, re.IGNORECASE)
-            if boot_match:
-                self.info['boot_method'] = boot_match.group(1)
-
-        # Try to get flash and memory size from inventory
-        try:
-            inventory_output = self._send_command("show inventory")
-            inventory_output = self._normalize_output(inventory_output)
-
-            # Parse flash size
-            flash_patterns = [
-                r'PID:\s*\S+,\s*(\d+\s+\w+)?\s*bytes',
-                r'flash\s+\(.*?\)\s+(\d+\s+\w+)?',
-            ]
-            for pattern in flash_patterns:
-                match = re.search(pattern, inventory_output, re.IGNORECASE)
-                if match:
-                    self.info['flash_size'] = match.group(1).strip()
-                    break
-
-            # Parse memory size
-            mem_patterns = [
-                r'Processor\s+with\s+(\d+\s+\w+)\s+of\s+memory',
-                r'System\s+memory\s+:\s*(\d+\s+\w+)',
-            ]
-            for pattern in mem_patterns:
-                match = re.search(pattern, inventory_output, re.IGNORECASE)
-                if match:
-                    self.info['memory_size'] = match.group(1).strip()
-                    break
-        except Exception:
-            pass
 
 
 def sync_device(
