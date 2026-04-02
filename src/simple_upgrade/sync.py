@@ -107,7 +107,7 @@ class SyncManager:
         """
         Send command to scrapli connection.
 
-        Validates channel before executing command.
+        Validates channel and platform before executing command.
         """
         # Validate channel
         active_channel = self.cm.get_active_channel()
@@ -122,6 +122,19 @@ class SyncManager:
                 f"Invalid channel: {active_channel}. "
                 f"Supported channel: scrapli"
             )
+
+        # Validate platform
+        channel_platform = self.cm.get_active_channel_platform()
+        if channel_platform:
+            # Normalize platforms for comparison
+            norm_sync_platform = self.platform.replace('-', '_')
+            norm_channel_platform = channel_platform.lower().replace('-', '_')
+
+            if norm_sync_platform != norm_channel_platform:
+                raise ValueError(
+                    f"Platform mismatch: SyncManager platform='{self.platform}', "
+                    f"channel platform='{channel_platform}'"
+                )
 
         result = self.cm._scrapli_conn.send_command(command)
         return str(result.result)
