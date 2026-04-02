@@ -285,19 +285,20 @@ class UpgradeWorkflow:
             self.errors.append(f"Readiness check failed: {e}")
             return False
 
-    def _run_pre_checks(self, **kwargs) -> bool:
+    def _run_checks(self, check_type: str, **kwargs) -> bool:
         """
-        Run pre-upgrade validation checks using scrapli.
-        Executes show commands and stores output in pre_check folder.
+        Run pre or post upgrade validation checks using scrapli.
+
+        Args:
+            check_type: 'pre' or 'post' to determine folder naming
         """
         try:
             import os
-            import time
             from datetime import datetime
 
             # Get device info for folder name
             hostname = self.device.hostname or self.device.host
-            folder_name = f"pre_check_{hostname}_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+            folder_name = f"{check_type}_check_{hostname}_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
             output_dir = os.path.join("output", folder_name)
             os.makedirs(output_dir, exist_ok=True)
 
@@ -320,8 +321,20 @@ class UpgradeWorkflow:
 
             return True
         except Exception as e:
-            self.errors.append(f"Pre-check failed: {e}")
+            self.errors.append(f"{check_type.title()}-check failed: {e}")
             return False
+
+    def _run_pre_checks(self, **kwargs) -> bool:
+        """
+        Run pre-upgrade validation checks.
+        """
+        return self._run_checks('pre', **kwargs)
+
+    def _run_post_checks(self, **kwargs) -> bool:
+        """
+        Run post-upgrade validation checks.
+        """
+        return self._run_checks('post', **kwargs)
 
     def _distribute_image(self, **kwargs) -> bool:
         """
@@ -339,6 +352,7 @@ class UpgradeWorkflow:
                     os='iosxe',
                     hostname=self.device.host,
                     learn_hostname=True,
+                    goto_enable=False,
                     credentials={
                         'default': {
                             'username': self.device.username,
@@ -405,6 +419,7 @@ class UpgradeWorkflow:
                     os='iosxe',
                     hostname=self.device.host,
                     learn_hostname=True,
+                    goto_enable=False,
                     credentials={
                         'default': {
                             'username': self.device.username,
