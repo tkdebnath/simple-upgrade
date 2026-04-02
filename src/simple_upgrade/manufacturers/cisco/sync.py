@@ -32,12 +32,13 @@ def _validate_channel(connection) -> None:
         )
 
 
-def fetch_info(connection, platform: str, commands: Dict[str, str]) -> Dict[str, Any]:
+def fetch_info(connection, channel: str, platform: str, commands: Dict[str, str]) -> Dict[str, Any]:
     """
     Fetch all device information using Cisco-specific commands.
 
     Args:
         connection: Active connection object
+        channel: Channel name (e.g., scrapli)
         platform: Platform name (cisco_ios, cisco_iosxe, cisco_nxos)
         commands: Dictionary of commands to execute
 
@@ -45,10 +46,14 @@ def fetch_info(connection, platform: str, commands: Dict[str, str]) -> Dict[str,
         Dictionary with device information
 
     Raises:
-        ValueError: If platform is not a Cisco platform or connection is not scrapli
+        ValueError: If channel is invalid or platform is not a Cisco platform
     """
     # Validate channel
-    _validate_channel(connection)
+    if channel.lower() != 'scrapli':
+        raise ValueError(
+            f"Invalid channel: '{channel}'. "
+            f"Supported channel: scrapli"
+        )
 
     # Validate platform is Cisco
     platform_lower = platform.lower().replace('-', '_')

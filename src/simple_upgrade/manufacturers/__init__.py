@@ -58,7 +58,18 @@ def execute_stage(manufacturer: str, stage: str, *args, **kwargs) -> Any:
     if module:
         # Try to find a function that matches the stage name or a generic execute function
         if hasattr(module, stage):
-            return getattr(module, stage)(*args, **kwargs)
+            func = getattr(module, stage)
+            # Get channel from kwargs if provided
+            channel = kwargs.pop('channel', None)
+            # If channel not provided and first arg is connection, try to get from connection
+            if channel is None and len(args) > 0:
+                conn = args[0]
+                channel_module = getattr(conn, '__module__', '')
+                channel = 'scrapli' if 'scrapli' in channel_module else None
+            # Call function with channel if it's a sync function
+            if stage == 'sync':
+                return func(*args, channel=channel, **kwargs)
+            return func(*args, **kwargs)
         elif hasattr(module, 'execute'):
             return module.execute(*args, **kwargs)
     return None

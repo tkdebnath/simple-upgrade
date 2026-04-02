@@ -7,37 +7,13 @@ Validates platform and channel before executing commands.
 from typing import Dict, Any
 
 
-def _validate_channel(connection) -> None:
-    """
-    Validate that the connection is a scrapli connection.
-
-    Args:
-        connection: Connection object to validate
-
-    Raises:
-        ValueError: If connection is not a scrapli connection
-    """
-    # Check if connection has send_command method
-    if not hasattr(connection, 'send_command'):
-        raise ValueError(
-            "Invalid connection object. Expected a connection with send_command method."
-        )
-
-    # Check module to identify connection type
-    module = getattr(connection, '__module__', '')
-    if 'scrapli' not in module:
-        raise ValueError(
-            f"Invalid connection type: {module}. "
-            f"Expected scrapli connection."
-        )
-
-
-def fetch_info(connection, platform: str, commands: Dict[str, str]) -> Dict[str, Any]:
+def fetch_info(connection, channel: str, platform: str, commands: Dict[str, str]) -> Dict[str, Any]:
     """
     Fetch all device information using Arista-specific commands.
 
     Args:
         connection: Active connection object
+        channel: Channel name (e.g., scrapli)
         platform: Platform name (arista_eos)
         commands: Dictionary of commands to execute
 
@@ -45,10 +21,14 @@ def fetch_info(connection, platform: str, commands: Dict[str, str]) -> Dict[str,
         Dictionary with device information
 
     Raises:
-        ValueError: If platform is not an Arista platform or connection is not scrapli
+        ValueError: If channel is invalid or platform is not an Arista platform
     """
     # Validate channel
-    _validate_channel(connection)
+    if channel.lower() != 'scrapli':
+        raise ValueError(
+            f"Invalid channel: '{channel}'. "
+            f"Supported channel: scrapli"
+        )
 
     # Validate platform is Arista
     platform_lower = platform.lower().replace('-', '_')
