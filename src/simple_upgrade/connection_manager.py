@@ -295,7 +295,12 @@ class ConnectionManager:
                 "auth_strict_key": self.auth_strict_key,
                 "timeout_socket": self.connection_timeout,
                 "platform": scrapli_platform,
+                "transport": "ssh2",
             }
+
+            # enable password
+            if self.enable_password:
+                conn_args["auth_secondary"] = self.enable_password
 
             # Apply any additional scrapli arguments (e.g., for older devices)
             if self.scrapli_args:
@@ -327,9 +332,14 @@ class ConnectionManager:
                 "username": self.username,
                 "password": self.password,
                 "timeout": self.timeout,
+                "conn_timeout": self.connection_timeout,
                 "global_delay_factor": 1,
                 "device_type": netmiko_platform,
             }
+
+            # enable password
+            if self.enable_password:
+                conn_args["secret"] = self.enable_password
 
             conn = ConnectHandler(**conn_args)
 
@@ -345,25 +355,44 @@ class ConnectionManager:
         Create and return a unicon (pyats) connection object.
         """
         try:
-            from genie.pyats import connections
+            from genie.testbed import load
 
             # Get os from centralized mapping
             unicon_os = self._get_library_platform('unicon')
 
-            # Build connection arguments
-            conn_args = {
-                "host": self.host,
-                "port": self.port,
-                "username": self.username,
-                "password": self.password,
-                "timeout": self.connection_timeout,
-                "ssh_args": {
-                    "timeout": self.connection_timeout,
-                },
-                "os": unicon_os,
+            # Building creds
+            credentials = {
+                "default": {
+                    "username": self.username,
+                    "password": self.password,
+                }
             }
 
-            conn = connections.connect(**conn_args)
+            if self.enable_password:
+                credentials["enable"]= {
+                    "password": self.enable_password,
+                }
+
+            # Build connection arguments
+            conn_args = {
+                "credentials": credentials,
+                "os": unicon_os,
+                'connections': {
+                    'defaults': {
+                        'class': 'unicon.Unicon',
+                    },
+                    'cli': {
+                        'protocol': 'ssh',
+                        'ip': self.host,
+                        'ssh_options': "-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o KexAlgorithms=+diffie-hellman-group-exchange-sha1,diffie-hellman-group14-sha1,diffie-hellman-group1-sha1 -o HostKeyAlgorithms=+ssh-rsa -o Ciphers=+aes256-cbc"
+                    }
+                }
+            }
+
+            tb_conf = {'devices': {self.host: conn_args}}
+            testbed = load(tb_conf)
+            conn = testbed.devices[self.host]
+            
 
             return conn
 
