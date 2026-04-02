@@ -45,28 +45,51 @@ def distribute_image(connection, platform: str, file_server: Dict[str, Any], gol
         result['message'] = 'Missing image name or file server information'
         return result
 
-    # Configure HTTP client source interface if specified
-    if source_interface:
-        try:
-            config_cmd = f"ip http client source-interface {source_interface}"
-            connection.execute(config_cmd, timeout=30)
-        except Exception as e:
-            result['message'] = f'Failed to configure HTTP source interface: {e}'
-            return result
-
     # Build copy command based on protocol and platform
     copy_cmd = _build_copy_command(platform, protocol, server_ip, base_path, image_name, source_interface)
     result['command'] = copy_cmd
 
     try:
-        # Handle the destination filename prompt using Dialog
-        from unicon.eal.dialogs import Dialog
+        # Configure HTTP client source interface if specified
+        if source_interface:
+            try:
+                config_cmd = f"ip http client source-interface {source_interface}"
+                connection.execute(config_cmd, timeout=30)
+            except Exception as e:
+                result['message'] = f'Failed to configure HTTP source interface: {e}'
+                return result
+
+        # Use Dialog with Statement to handle interactive prompts
+        from unicon.eal.dialogs import Dialog, Statement
         dialog = Dialog([
-            ['Destination filename \\[.*\\]', '\r', 'continue', False],
+            Statement(
+                pattern=r'Destination filename \[.*\]\?',
+                action='sendline()', loop_continue=True
+            ),
+            Statement(
+                pattern=r'Do you want to over write\? \[confirm\]',
+                action='sendline()', loop_continue=True
+            ),
+            Statement(
+                pattern=r'\[confirm\]',
+                action='sendline()', loop_continue=True
+            ),
+            Statement(
+                pattern=r'Address or name of remote host',
+                action='sendline()', loop_continue=True
+            ),
+            Statement(
+                pattern=r'%Error|TFTP .*error|Connection refused|No such file',
+                action=None, loop_continue=False
+            ),
+            Statement(
+                pattern=r'(?i)timed out|connection timed out',
+                action=None, loop_continue=False
+            ),
         ])
 
-        # Execute copy command with dialog to handle the filename prompt
-        output = connection.execute(copy_cmd, dialog=dialog)
+        # Execute copy command with dialog to handle interactive prompts
+        output = connection.execute(copy_cmd, timeout=7200, reply=dialog)
 
         # Check if transfer was successful
         if _check_copy_success(output, platform):
