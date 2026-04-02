@@ -85,18 +85,43 @@ def fetch_info(connection, channel: str, platform: str, commands: Dict[str, str]
     # Use connection as context manager if it supports __enter__ and __exit__
     if hasattr(connection, '__enter__') and hasattr(connection, '__exit__'):
         with connection:
-            # Fetch version
-            version_output = connection.send_command(commands.get('show_version', 'show version'))
-            info['version'] = version_output
-            info['current_version'] = info['version']
+            if channel.lower() == 'scrapli':
+                # Fetch version
+                version_output = connection.send_command(commands.get('show_version', 'show version'))
+                parsed_version = version_output.textfsm_parse_output()
+                
+                response_prompt = connection.get_prompt()
+                if response_prompt:
+                    info['hostname'] = response_prompt.replace("#", "").replace(">", "").strip()
 
-            # Fetch hostname
-            hostname_output = connection.send_command(commands.get('show_version', 'show version'))
-            info['hostname'] = hostname_output
+                if parsed_version:
+                    if platform_lower in ['cisco_ios', 'cisco_iosxe']:
+                        info['version'] = parsed_version[0].get('version', '')
 
-            # Fetch inventory
-            inventory_output = connection.send_command(commands.get('show_inventory', 'show inventory'))
-            info['inventory'] = inventory_output
+                        if isinstance(parsed_version[0].get('serial'), list):
+                            info['serial'] = parsed_version[0].get('serial')[0]
+                        else:
+                            info['serial'] = parsed_version[0].get('serial', '')
+                        
+                        if not info['hostname']:
+                            info['hostname'] = parsed_version[0].get('hostname', '')
+
+                        if isinstance(parsed_version[0].get('hardware'), list):
+                            info['model'] = parsed_version[0].get('hardware')[0]
+                        else:
+                            info['model'] = parsed_version[0].get('hardware', '')
+                        
+                        info['platform'] = platform_lower
+                        info['uptime'] = parsed_version[0].get('uptime', '')
+                        info['boot_method'] = parsed_version[0].get('running_image', '')
+                        info['config_register'] = parsed_version[0].get('config_register', '')
+                    
+                    elif platform_lower == 'cisco_nxos':
+                        # not yet implemented
+                        pass
+                
+
+        
     else:
         # Fallback: just use the connection without context manager
         # Fetch version
@@ -104,12 +129,6 @@ def fetch_info(connection, channel: str, platform: str, commands: Dict[str, str]
         info['version'] = version_output
         info['current_version'] = info['version']
 
-        # Fetch hostname
-        hostname_output = connection.send_command(commands.get('show_version', 'show version'))
-        info['hostname'] = hostname_output
-
-        # Fetch inventory
-        inventory_output = connection.send_command(commands.get('show_inventory', 'show inventory'))
-        info['inventory'] = inventory_output
+        
 
     return info
