@@ -113,6 +113,7 @@ class ConnectionManager:
         self._active_channel = None
         self._platforms = {}  # Store platform for each channel
         self.channel = None  # Channel name for external use
+        self.channel_platform = None  # Platform for the active channel
 
     def _get_library_platform(self, library: str) -> str:
         """
@@ -192,24 +193,27 @@ class ConnectionManager:
                 self._scrapli_conn = self._get_scrapli_connection()
                 self._active_channel = 'scrapli'
                 self.channel = 'scrapli'
+                self.channel_platform = self._get_library_platform('scrapli')
                 # Store platform for sync step
-                self._platforms['scrapli'] = self._get_library_platform('scrapli')
+                self._platforms['scrapli'] = self.channel_platform
                 return self._scrapli_conn
 
             elif channel == 'netmiko':
                 self._netmiko_conn = self._get_netmiko_connection()
                 self._active_channel = 'netmiko'
                 self.channel = 'netmiko'
+                self.channel_platform = self._get_library_platform('netmiko')
                 # Store platform for sync step
-                self._platforms['netmiko'] = self._get_library_platform('netmiko')
+                self._platforms['netmiko'] = self.channel_platform
                 return self._netmiko_conn
 
             elif channel == 'unicon':
                 self._unicon_conn = self._get_unicon_connection()
                 self._active_channel = 'unicon'
                 self.channel = 'unicon'
+                self.channel_platform = self._get_library_platform('unicon')
                 # Store platform for sync step
-                self._platforms['unicon'] = self._get_library_platform('unicon')
+                self._platforms['unicon'] = self.channel_platform
                 return self._unicon_conn
 
         except Exception as e:
@@ -483,6 +487,10 @@ class ConnectionManager:
     def get_active_channel(self) -> Optional[str]:
         """Return the currently active connection channel."""
         return self._active_channel
+
+    def get_active_channel_platform(self) -> Optional[str]:
+        """Return the platform for the currently active channel."""
+        return self.channel_platform
 
     def get_channel_for_connection(self, conn: Any) -> Optional[str]:
         """
