@@ -1,7 +1,13 @@
 [project]
 name = "simple-upgrade"
 version = "0.1.0"
-description = "Add your description here"
+description = "A simple Python package for network device firmware upgrades supporting Cisco, Juniper, Arista, and Palo Alto."
 readme = "README.md"
-requires-python = ">=3.12"
-dependencies = []
+requires-python = ">=3.10"
+dependencies = [
+    "scrapli>=2023.1.30",
+    "netmiko>=4.1.2",
+    "unicon>=22.10",
+    "genie>=22.10",
+    "pyats>=22.10"
+]

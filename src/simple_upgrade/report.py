@@ -140,6 +140,8 @@ class ReportGenerator:
                 category = 'uptime'
             elif 'free_space' in key.lower() or 'storage' in key.lower():
                 category = 'storage'
+            elif 'route' in key.lower() or 'routing' in key.lower():
+                category = 'routing'
 
             if category not in summary['categories']:
                 summary['categories'][category] = {
@@ -199,6 +201,7 @@ class ReportGenerator:
         issues.extend(self._check_interface_issues())
         issues.extend(self._check_bgp_issues())
         issues.extend(self._check_version_issues())
+        issues.extend(self._check_route_issues())
 
         return issues
 
@@ -259,6 +262,40 @@ class ReportGenerator:
                 'severity': 'high',
                 'category': 'software',
                 'description': f"Version mismatch - expected {target_version}, got {post_ver}",
+            })
+
+        return issues
+
+    def _check_route_issues(self) -> List[Dict[str, Any]]:
+        """Check for routing-related issues."""
+        issues = []
+
+        pre_routes = self.pre_checks.get('pre_upgrade', {}).get('routes', [])
+        post_routes = self.post_checks.get('post_upgrade', {}).get('routes', [])
+
+        if not pre_routes or not post_routes:
+            return issues
+
+        # Format routes for comparison
+        pre_set = {f"{r.get('network')}/{r.get('mask')}" for r in pre_routes if r.get('network')}
+        post_set = {f"{r.get('network')}/{r.get('mask')}" for r in post_routes if r.get('network')}
+
+        # Identify missing routes
+        missing = pre_set - post_set
+        for route in missing:
+            issues.append({
+                'severity': 'high',
+                'category': 'routing',
+                'description': f"Route {route} was lost during upgrade",
+            })
+
+        # Identify new routes
+        added = post_set - pre_set
+        for route in added:
+            issues.append({
+                'severity': 'low',
+                'category': 'routing',
+                'description': f"New route {route} detected after upgrade",
             })
 
         return issues
