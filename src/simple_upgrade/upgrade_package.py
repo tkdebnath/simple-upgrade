@@ -83,16 +83,23 @@ class UpgradePackage:
             raise ValueError("UpgradePackage initialization failed: 'manufacturer' and 'platform' are strictly required.")
             
         manufacturer = manufacturer.lower()
-        if manufacturer != "cisco":
-            raise ValueError(f"UpgradePackage initialization failed: Only 'cisco' is a valid manufacturer, but got '{manufacturer}'.")
+        
+        SUPPORTED_DEVICES = {
+            "cisco": ["cisco-ios-xe", "cisco_xe", "cisco_iosxe", "iosxe"]
+        }
+
+        if manufacturer not in SUPPORTED_DEVICES:
+            raise ValueError(
+                f"UpgradePackage initialization failed: Invalid manufacturer '{manufacturer}'. "
+                f"Supported manufacturers and their platforms are: {SUPPORTED_DEVICES}"
+            )
             
-        valid_cisco_platforms = [
-            "cisco-ios", "cisco_ios", "ios", 
-            "cisco-ios-xe", "cisco_xe", "cisco_iosxe", "iosxe",
-            "cisco-nx-os", "cisco_nxos", "nxos"
-        ]
-        if platform.lower() not in valid_cisco_platforms:
-            raise ValueError(f"UpgradePackage initialization failed: Invalid platform '{platform}' for manufacturer 'cisco'. Valid platforms: {valid_cisco_platforms}")
+        valid_platforms = SUPPORTED_DEVICES[manufacturer]
+        if platform.lower() not in valid_platforms:
+            raise ValueError(
+                f"UpgradePackage initialization failed: Invalid platform '{platform}' for manufacturer '{manufacturer}'. "
+                f"Valid platforms: {valid_platforms}"
+            )
     # ── Orchestration ─────────────────────────────────────────────────
 
     def run_stage(self, stage: str) -> StageResult:
