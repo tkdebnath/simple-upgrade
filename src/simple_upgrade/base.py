@@ -43,6 +43,9 @@ class DeviceInfo(BaseModel):
     hostname: Optional[str] = None
     serial: Optional[str] = None
     platform: Optional[str] = None
+    boot_file: Optional[str] = None
+    uptime: Optional[str] = None
+    chassis_sn: Optional[str] = None
     extra: Dict[str, Any] = Field(default_factory=dict)
 
 

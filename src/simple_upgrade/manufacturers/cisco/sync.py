@@ -20,72 +20,65 @@ class CiscoSyncTask(BaseTask):
         """Fetch device information and populate ctx.device_info."""
         
         if self.ctx.connection_mode != "normal":
-            # Just populate with dummy data during mock
-            self._apply_mock_data()
+            self.ctx.device_info.hostname = "MOCK-R1"
+            self.ctx.device_info.manufacturer = "Cisco"
+            self.ctx.device_info.model = "C9300-MOCK"
+            self.ctx.device_info.version = "17.0.0"
             return self._success(f"[MOCK] Synchronised device info: {self.ctx.device_info.hostname}")
 
-        # Try structured Genie parse first
-        if not self._sync_via_genie():
-            # Fall back to raw text parsing
-            self._sync_via_raw_text()
+        # Send command via scrapli
+        res_version = self.conn.send_command("show version")
+        res_hostname = self.conn.get_prompt()
+        
+        hostname = None
+        version = None
+        model = None
+        manufacturer = "cisco"
+        boot_file = None
+        uptime = None
+        chassis_sn = None
 
-        # Manufacturer is safely set as Cisco here automatically
-        self.ctx.device_info.manufacturer = "Cisco"
+        if res_hostname:
+            hostname = res_hostname.replace("#", "").replace(">", "").strip()
+
+        # parse version
+        parse_version = res_version.genie_parse_output()
+        if parse_version:
+            # cisco ios/xe
+            if parse_version.get('version'):
+                # hostname
+                if not hostname:
+                    hostname = parse_version.get("version", {}).get("hostname", "") 
+                # version
+                version = parse_version.get("version", {}).get("version", "")
+                # model
+                model = parse_version.get("version", {}).get("chassis", "")
+                if not model:
+                    model = parse_version.get("version", {}).get("rtr_type", "")
+                # Extract Boot Method / System Image
+                boot_file = parse_version.get("version", {}).get("system_image")
+                if not boot_file:
+                    # Fallback check
+                    boot_file = parse_version.get("version", {}).get("boot_image")
+                
+                # chassis sn
+                chassis_sn = parse_version.get("version", {}).get("chassis_sn")
+
+                # uptime
+                uptime = parse_version.get("version", {}).get("uptime")
+            
+            # nx-os (todo)
+            # if parse_version.get('platform'):
+
+        # ── TODO: Insert your custom parsing logic here ────────────────
+        self.ctx.device_info.hostname = hostname
+        self.ctx.device_info.manufacturer = manufacturer
+        self.ctx.device_info.model = model
+        self.ctx.device_info.version = version
+        self.ctx.device_info.boot_file = boot_file
+        self.ctx.device_info.uptime = uptime
+        self.ctx.device_info.chassis_sn = chassis_sn
 
         info = self.ctx.device_info
         return self._success(f"Discovered {info.manufacturer} {info.model} ({info.hostname}) on v{info.version}")
 
-    def _sync_via_genie(self) -> bool:
-        """Parse 'show version' cleanly using Genie."""
-        try:
-            from genie.conf.base import Device as GenieDevice
-
-            platform = (self.ctx.device_type or "iosxe").replace("cisco_", "")
-            dev = GenieDevice(
-                name="dut",
-                os=platform,
-            )
-            dev.connections = {"default": self.conn}
-            dev.default = self.conn
-
-            parsed = dev.parse("show version")
-            version_dict = parsed.get("version", {})
-
-            # Populate context automatically
-            self.ctx.device_info.hostname = version_dict.get("hostname", "Unknown")
-            self.ctx.device_info.version  = version_dict.get("version", "Unknown")
-            self.ctx.device_info.model    = version_dict.get("chassis", "Unknown")
-
-            return True
-
-        except Exception as e:
-            return False
-
-    def _sync_via_raw_text(self) -> None:
-        """Fallback: Parse raw 'show version' text if Genie fails."""
-        try:
-            out = str(self.conn.send_command("show version", timeout=30))
-            
-            # Hostname: usually the prompt itself (Host#), but hard to guess reliably if not in output explicitly
-            # Version:
-            m_ver = re.search(r'Version\s+(\S+)', out)
-            if m_ver:
-                self.ctx.device_info.version = m_ver.group(1).rstrip(",")
-                
-            # Model:
-            m_mod = re.search(r'cisco\s+(\S+)\s+\(.*processor\)', out, re.IGNORECASE)
-            if m_mod:
-                self.ctx.device_info.model = m_mod.group(1)
-
-            if not self.ctx.device_info.hostname:
-                self.ctx.device_info.hostname = "Unknown-Device"
-
-        except Exception:
-            pass
-
-    def _apply_mock_data(self):
-        """Mock data for dry runs."""
-        self.ctx.device_info.hostname = "MOCK-R1"
-        self.ctx.device_info.manufacturer = "Cisco"
-        self.ctx.device_info.model = "C9300-MOCK"
-        self.ctx.device_info.version = "17.0.0"
