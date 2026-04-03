@@ -1,82 +1,83 @@
 """
-Cisco IOS-XE/NX-OS verification module - Confirms version match.
+Cisco verification task.
 
-This module provides Cisco-specific version verification using scrapli.
+Confirms the device is running the target version after upgrade.
+Uses Genie parser for structured version extraction — no regex.
+Falls back to 'show version | include Version' if Genie unavailable.
 """
 
-from typing import Dict, Any
+from ...registry import register_stage
+from ...base import BaseTask, StageResult
 
 
-def verify_version(connection, platform: str, commands: Dict[str, str], golden_image: Dict[str, Any]) -> Dict[str, Any]:
-    """
-    Verify the device is running the target version.
+@register_stage('verification', 'cisco')
+class CiscoVerificationTask(BaseTask):
+    @property
+    def name(self) -> str: return "verification"
 
-    Args:
-        connection: Active connection object (scrapli)
-        platform: Platform name (cisco_iosxe)
-        commands: Dictionary of commands to execute
-        golden_image: Dictionary with golden image information
+    def run(self, **kwargs) -> StageResult:
+        """Verify device is running the target golden image version."""
+        target = self.ctx.golden_image.version
 
-    Returns:
-        Dictionary with:
-            - verified: Boolean indicating if version matches
-            - current_version: Current version on device
-            - target_version: Target version to verify
-            - message: Status message
-    """
-    result = {
-        'verified': False,
-        'current_version': '',
-        'target_version': golden_image.get('version', ''),
-        'message': '',
-    }
+        if self.ctx.connection_mode != "normal":
+            return self._success(
+                f"[MOCK] Would verify version == {target}",
+                data={"target_version": target}
+            )
 
-    # Fetch current version
-    version_output = connection.send_command(commands.get('show_version', 'show version'))
-    version_output_str = str(version_output.result)
-    current_version = _parse_version(version_output_str, platform)
-    result['current_version'] = current_version
+        current = self._get_current_version()
 
-    # Compare with target
-    if current_version == result['target_version']:
-        result['verified'] = True
-        result['message'] = f'Version verified: {current_version}'
-    else:
-        target_ver = result['target_version']
-        result['message'] = f'Version mismatch. Current: {current_version}, Target: {target_ver}'
+        if current == "Unknown":
+            return self._fail("Could not determine current version from 'show version'")
 
-    return result
+        if current == target:
+            return self._success(
+                f"Version verified: {current}",
+                data={"current_version": current, "target_version": target}
+            )
 
+        return self._fail(
+            f"Version mismatch — current: {current}, expected: {target}",
+            data={"current_version": current, "target_version": target}
+        )
 
-def _parse_version(output: str, platform: str) -> str:
-    """
-    Parse software version from show version output.
+    def _get_current_version(self) -> str:
+        """
+        Extract version using Genie parser (structured, no regex).
+        Falls back to a targeted 'show version | include Version' command.
+        """
+        # ── Try Genie first ───────────────────────────────────────────────
+        try:
+            from genie.testbed import load as load_testbed
+            from genie.conf.base import Device as GenieDevice
 
-    Args:
-        output: Output from 'show version' command
-        platform: Platform name
+            platform = (self.ctx.device_type or "iosxe").replace("cisco_", "")
+            dev = GenieDevice(
+                name=self.ctx.device_info.hostname or "dut",
+                os=platform,
+            )
+            dev.connections = {"default": self.conn}
+            dev.default = self.conn
 
-    Returns:
-        Software version string
-    """
-    if isinstance(output, list):
-        output = '\n'.join(output)
+            parsed = dev.parse("show version")
+            # Genie returns: parsed['version']['version']
+            return parsed.get("version", {}).get("version", "Unknown")
 
-    import re
+        except Exception:
+            pass  # Genie not available or parse failed — fall back
 
-    # NX-OS disabled - only generic Cisco patterns
+        # ── Fallback: targeted grep to avoid full-output scanning ─────────
+        try:
+            out = self.conn.send_command(
+                "show version | include Cisco IOS XE Software",
+                timeout=30
+            )
+            # Output looks like: "Cisco IOS XE Software, Version 17.09.04a"
+            for line in str(out).splitlines():
+                if "Version" in line:
+                    # Take the last word on the line (the version string)
+                    return line.strip().split()[-1].rstrip(",")
+        except Exception:
+            pass
 
-    # Generic Cisco patterns
-    patterns = [
-        r'Version\s+(\S+)',
-        r'IOS-XE\s+Version\s+(\S+)',
-        r'IOS\s+Version\s+(\S+)',
-        r'Software\s+image\s+version:\s+(\S+)',
-    ]
-
-    for pattern in patterns:
-        match = re.search(pattern, output)
-        if match:
-            return match.group(1)
-
-    return 'Unknown'
+        return "Unknown"
