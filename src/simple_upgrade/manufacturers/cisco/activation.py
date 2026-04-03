@@ -18,7 +18,7 @@ from ...base import BaseTask, StageResult
 
 # ── C9300 family model patterns ───────────────────────────────────────────
 C9300_PATTERN = re.compile(
-    r"C9300|Catalyst\s*9300|C9300L|C9300X|C9300-\d+",
+    r"C9300|Catalyst\s*9300|C9300L|C9300X|C9300-\d+|C9KV-UADP-8P",
     re.IGNORECASE
 )
 
