@@ -80,7 +80,7 @@ class ConnectionManager:
                 "auth_username": self.username,
                 "auth_password": self.password,
                 "platform": platform,
-                "transport": "ssh2",
+                "transport": "system",
                 "auth_strict_key": False,
                 "timeout_socket": self.timeout,
             }
