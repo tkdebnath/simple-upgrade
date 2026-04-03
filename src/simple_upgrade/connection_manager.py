@@ -101,8 +101,22 @@ class ConnectionManager:
                 "hostname": self.host,
                 "credentials": credentials,
                 "start": [f"ssh {self.username}@{self.host}"],
-                "timeout": self.timeout
+                "learn_hostname": True,
+                "goto_enable": False,
+                "init_commands": [],
+                "timeout": self.timeout,
+                # Legacy SSH compatibility: allow older key exchange algorithms
+                # and ciphers required by many Cisco IOS / IOS-XE devices.
+                "ssh_options": (
+                    "-o KexAlgorithms=+diffie-hellman-group-exchange-sha1,"
+                    "diffie-hellman-group14-sha1,"
+                    "diffie-hellman-group1-sha1 "
+                    "-o HostKeyAlgorithms=+ssh-rsa "
+                    "-o Ciphers=+aes128-cbc,3des-cbc,aes192-cbc,aes256-cbc "
+                    "-o StrictHostKeyChecking=no"
+                ),
             }
+
         return {}
 
     def _get_mapped_platform(self, library: str) -> str:
