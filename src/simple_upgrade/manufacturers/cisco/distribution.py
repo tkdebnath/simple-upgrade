@@ -62,6 +62,9 @@ class CiscoDistributeTask(BaseTask):
         if self._file_valid(conn, img, dest):
             return self._success(f"{img} already present and verified — skipping download")
 
+        # ── Apply protocol-specific device configuration ────────────────────
+        self._apply_protocol_config(conn, fs)
+
         # ── Execute copy with Dialog-based prompt handler ──────────────────
         self._log(f"Starting transfer: {url} → {dest}")
         result = conn.execute(cmd, timeout=3600, reply=COPY_DIALOG)
@@ -78,6 +81,53 @@ class CiscoDistributeTask(BaseTask):
         return self._success(f"Successfully distributed {img} to {dest}")
 
     # ── Helpers ────────────────────────────────────────────────────────────
+
+    def _apply_protocol_config(self, conn, fs) -> None:
+        """
+        Push protocol-specific IOS global config to the device before the
+        copy command runs.  Uses Unicon configure() which wraps commands in
+        'conf t' / 'end' automatically.
+
+        Protocol → commands applied
+        ───────────────────────────────────────────────────────────────────
+        http / https  → ip http client source-interface <intf>  (if set)
+        tftp          → ip tftp source-interface <intf>          (if set)
+        ftp           → ip ftp username <u>
+                        ip ftp password <p>
+        scp           → ip scp server enable
+        """
+        proto  = fs.protocol.lower()
+        cmds   = []
+
+        if proto in ("http", "https"):
+            if fs.source_interface:
+                cmds.append(f"ip http client source-interface {fs.source_interface}")
+            # Optionally enforce a specific HTTP client version (IOS default is 1.1)
+            # cmds.append("ip http client connection persistent")
+
+        elif proto == "tftp":
+            if fs.source_interface:
+                cmds.append(f"ip tftp source-interface {fs.source_interface}")
+
+        elif proto == "ftp":
+            if fs.username:
+                cmds.append(f"ip ftp username {fs.username}")
+            if fs.password:
+                cmds.append(f"ip ftp password {fs.password}")
+            if fs.source_interface:
+                cmds.append(f"ip ftp source-interface {fs.source_interface}")
+
+        elif proto == "scp":
+            cmds.append("ip scp server enable")
+            if fs.source_interface:
+                cmds.append(f"ip ssh source-interface {fs.source_interface}")
+
+        if cmds:
+            self._log(f"Applying {proto.upper()} pre-transfer config: {cmds}")
+            conn.configure(cmds)
+        else:
+            self._log(f"No pre-transfer config required for protocol: {proto}")
+
 
     def _file_valid(self, conn, filename: str, dest: str) -> bool:
         """Return True if file exists on device with matching size (and MD5 if provided)."""
