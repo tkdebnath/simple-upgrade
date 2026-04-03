@@ -53,10 +53,11 @@ class CiscoCheckTask(BaseTask):
             key = cmd.split("|")[0].strip().replace(" ", "_")
             try:
                 # configs can be large — allow extra time
-                timeout = 120 if "config" in cmd else 60
-                output = self.conn.send_command(cmd, timeout=timeout)
-                captured[key] = str(output)
-            except Exception:
+                timeout_val = 120 if "config" in cmd else 60
+                output = self.conn.send_command(cmd, timeout_ops=timeout_val)
+                captured[key] = output.result
+            except Exception as e:
+                print(f"Warning: Command '{cmd}' failed: {e}")
                 skipped.append(cmd)
 
         # Persist to context for diff access
