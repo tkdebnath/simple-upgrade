@@ -30,7 +30,8 @@ class UpgradePackage:
         'activate', 
         'post_activation_wait', 
         'post_check', 
-        'verification'
+        'verification',
+        'diff'
     ]
 
     def __init__(
@@ -100,6 +101,7 @@ class UpgradePackage:
                 f"UpgradePackage initialization failed: Invalid platform '{platform}' for manufacturer '{manufacturer}'. "
                 f"Valid platforms: {valid_platforms}"
             )
+
     # ── Orchestration ─────────────────────────────────────────────────
 
     def run_stage(self, stage: str) -> StageResult:
@@ -120,8 +122,9 @@ class UpgradePackage:
     def execute(self) -> Dict[str, Any]:
         """Runs the complete sequence of upgrade stages."""
         for stage in self.STAGES:
-            if self.ctx.failed_stage:
-                break
+            # The 'diff' stage is a special teardown stage always executed
+            if self.ctx.failed_stage and stage != 'diff':
+                continue
             self.run_stage(stage)
         
         return {name: res.model_dump() for name, res in self.ctx.stage_results.items()}
