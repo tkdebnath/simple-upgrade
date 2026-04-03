@@ -10,6 +10,7 @@ from ...registry import register_stage
 from ...base import BaseTask, StageResult
 
 
+
 @register_stage('verification', 'cisco')
 class CiscoVerificationTask(BaseTask):
     @property
@@ -56,20 +57,4 @@ class CiscoVerificationTask(BaseTask):
 
 
         except Exception:
-            pass  # Genie not available or parse failed — fall back
-
-        # ── Fallback: targeted grep to avoid full-output scanning ─────────
-        try:
-            out = self.conn.send_command(
-                "show version | include Cisco IOS XE Software",
-                timeout=30
-            )
-            # Output looks like: "Cisco IOS XE Software, Version 17.09.04a"
-            for line in str(out).splitlines():
-                if "Version" in line:
-                    # Take the last word on the line (the version string)
-                    return line.strip().split()[-1].rstrip(",")
-        except Exception:
-            pass
-
-        return "Unknown"
+            return "Unknown"
