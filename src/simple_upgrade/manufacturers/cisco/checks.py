@@ -28,6 +28,8 @@ SHOW_COMMANDS = [
     "show license summary",
     "show proc cpu sorted | head 10",
     "show memory statistics",
+    "show running-config",
+    "show startup-config",
 ]
 
 
@@ -50,7 +52,9 @@ class CiscoCheckTask(BaseTask):
         for cmd in SHOW_COMMANDS:
             key = cmd.split("|")[0].strip().replace(" ", "_")
             try:
-                output = self.conn.send_command(cmd, timeout=60)
+                # configs can be large — allow extra time
+                timeout = 120 if "config" in cmd else 60
+                output = self.conn.send_command(cmd, timeout=timeout)
                 captured[key] = str(output)
             except Exception:
                 skipped.append(cmd)
