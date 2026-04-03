@@ -263,6 +263,7 @@ def example_multi_device():
     shared_image = {
         "version": "17.09.04a",
         "image_name": "cat9k_iosxe.17.09.04a.SPA.bin",
+        "image_size": 897_286_144,
         "md5": "a3f1e2d4c5b6789012345678abcdef01",
     }
 

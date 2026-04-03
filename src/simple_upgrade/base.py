@@ -15,8 +15,8 @@ from .connection_manager import ConnectionManager
 class GoldenImage(BaseModel):
     version: str
     image_name: str
-    image_size: Optional[int] = None
-    md5: Optional[str] = None
+    image_size: int
+    md5: str
     sha256: Optional[str] = None
 
     @field_validator('image_name')
@@ -29,7 +29,7 @@ class GoldenImage(BaseModel):
 class FileServer(BaseModel):
     ip: str
     protocol: str = "http"
-    base_path: str = ""
+    base_path: str
     port: Optional[int] = None
     username: Optional[str] = None
     password: Optional[str] = None
