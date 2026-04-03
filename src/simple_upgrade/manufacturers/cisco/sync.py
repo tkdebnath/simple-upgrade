@@ -86,43 +86,63 @@ class CiscoSyncTask(BaseTask):
         #insert all attributes of device_info to data
         data = self.ctx.device_info.__dict__
 
-        # ── Hardware Validation Gate ───────────────────────────────────────
+        # ── Global Device Profile Validation Gate ──────────────────────────
         import os
         import json
         import re
+        import glob
         
         info = self.ctx.device_info
-        
-        # Load external authorization matrix based on manufacturer
         mfg = str(info.manufacturer).lower()
-        auth_file = os.path.join(os.path.dirname(__file__), "..", "..", "hardware", mfg, "authorized.json")
         
-        authorized = False
-        if os.path.exists(auth_file):
-            with open(auth_file, "r") as f:
-                matrix = json.load(f)
-                
-            os_platform = str(info.platform).upper()
-            device_model = str(info.model)
-            
-            # Match platform exactly, but allow RegEx against the model
-            for allowed_platform, model_patterns in matrix.items():
-                if allowed_platform.upper() == os_platform:
-                    for pattern in model_patterns:
-                        if re.search(pattern, device_model, re.IGNORECASE):
-                            authorized = True
-                            break
-                if authorized:
-                    break
+        # Locate the device_profiles directory contextually
+        profiles_dir = os.path.abspath(os.path.join(
+            os.path.dirname(__file__), "..", "..", "device_profiles", mfg
+        ))
+        
+        resolved_profile = None
+        device_model = str(info.model)
+        os_platform = str(info.platform).lower()
+        
+        if os.path.exists(profiles_dir):
+            for profile_path in glob.glob(os.path.join(profiles_dir, "*.json")):
+                try:
+                    with open(profile_path, "r") as f:
+                        profile = json.load(f)
                     
-            if not authorized:
-                return self._fail(
-                    f"Unauthorized Hardware: Platform '{info.platform}' / Model '{info.model}'. "
-                    f"Device does not match any authorized configuration in {mfg}/authorized.json",
-                    data=data
-                )
+                    allowed_models = profile.get("models", [])
+                    # We match prefixes natively to catch hyphens gracefully
+                    matched_model = False
+                    for allowed in allowed_models:
+                        if re.search(allowed, device_model, re.IGNORECASE):
+                            matched_model = True
+                            break
+                    
+                    if matched_model:
+                        # Validate OS footprint (IOS-XE vs standard cisco_iosxe generic)
+                        prof_platform = profile.get("platform", "").lower()
+                        prof_device_type = profile.get("device_type", "").lower()
+                        
+                        if (prof_platform in os_platform or prof_device_type in os_platform) or (os_platform in prof_platform) or os_platform == "":
+                            resolved_profile = profile
+                            break
+                            
+                except Exception as e:
+                    self._log(f"Warning: Could not parse device profile {profile_path}: {e}")
+                    continue
         else:
-            self._log(f"Warning: No hardware authorization matrix found at {auth_file}. Skipping strict validation.")
+            self._log(f"Warning: No device_profiles directory found for {mfg} at {profiles_dir}.")
 
-        return self._success(f"Discovered {info.manufacturer} {info.model} ({info.hostname}) on v{info.version}", data=data)
+        if not resolved_profile:
+            return self._fail(
+                f"Unauthorized Hardware: Platform '{info.platform}' / Model '{info.model}'. "
+                f"Device config does not match any valid profiles in device_profiles/{mfg}/",
+                data=data
+            )
+            
+        # Attach the single-source-of-truth profile to the data context
+        self.ctx.device_info.extra['device_profile'] = resolved_profile
+        data['device_profile_id'] = resolved_profile.get("model", "unknown")
+
+        return self._success(f"Discovered {info.manufacturer} {info.model} ({info.hostname}) on v{info.version} (Linked to Profile: {data['device_profile_id']})", data=data)
 
