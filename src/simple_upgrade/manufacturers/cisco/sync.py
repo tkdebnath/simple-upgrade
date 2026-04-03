@@ -86,17 +86,43 @@ class CiscoSyncTask(BaseTask):
         #insert all attributes of device_info to data
         data = self.ctx.device_info.__dict__
 
+        # ── Hardware Validation Gate ───────────────────────────────────────
+        import os
+        import json
+        import re
+        
         info = self.ctx.device_info
         
-        # ── Hardware Validation Gate ───────────────────────────────────────
-        # Reject the workflow immediately if the device is not authorized
-        from .activation import C9300_PATTERN
-        if not C9300_PATTERN.search(info.model):
-            return self._fail(
-                f"Unauthorized Hardware: Discovered '{info.model}'. "
-                "Only C9300-family hardware platforms are authorized for this pipeline.",
-                data=data
-            )
+        # Load external authorization matrix based on manufacturer
+        mfg = str(info.manufacturer).lower()
+        auth_file = os.path.join(os.path.dirname(__file__), "..", "..", "hardware", mfg, "authorized.json")
+        
+        authorized = False
+        if os.path.exists(auth_file):
+            with open(auth_file, "r") as f:
+                matrix = json.load(f)
+                
+            os_platform = str(info.platform).upper()
+            device_model = str(info.model)
+            
+            # Match platform exactly, but allow RegEx against the model
+            for allowed_platform, model_patterns in matrix.items():
+                if allowed_platform.upper() == os_platform:
+                    for pattern in model_patterns:
+                        if re.search(pattern, device_model, re.IGNORECASE):
+                            authorized = True
+                            break
+                if authorized:
+                    break
+                    
+            if not authorized:
+                return self._fail(
+                    f"Unauthorized Hardware: Platform '{info.platform}' / Model '{info.model}'. "
+                    f"Device does not match any authorized configuration in {mfg}/authorized.json",
+                    data=data
+                )
+        else:
+            self._log(f"Warning: No hardware authorization matrix found at {auth_file}. Skipping strict validation.")
 
         return self._success(f"Discovered {info.manufacturer} {info.model} ({info.hostname}) on v{info.version}", data=data)
 
