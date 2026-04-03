@@ -140,11 +140,9 @@ def example_model_objects():
         manufacturer="cisco",
         device_type="cisco_iosxe",
         connection_mode=CONNECTION_MODE,
+        golden_image=golden_image.model_dump() if hasattr(golden_image, 'model_dump') else golden_image,
+        file_server=file_server.model_dump() if hasattr(file_server, 'model_dump') else file_server,
     )
-
-    # Assign the fully-built model objects via property setters
-    upgrade.golden_image = golden_image
-    upgrade.file_server  = file_server
 
     _run_and_print(upgrade, "Pattern B")
 
@@ -168,9 +166,9 @@ def example_stage_by_stage():
         manufacturer="cisco",
         device_type="cisco_iosxe",
         connection_mode=CONNECTION_MODE,
+        golden_image=golden_image.model_dump() if hasattr(golden_image, 'model_dump') else golden_image,
+        file_server=file_server.model_dump() if hasattr(file_server, 'model_dump') else file_server,
     )
-    upgrade.golden_image = golden_image
-    upgrade.file_server  = file_server
 
     stages = [
         "sync",
@@ -224,10 +222,13 @@ def example_full_execute():
         golden_image={
             "version": "17.09.04a",
             "image_name": "cat9k_iosxe.17.09.04a.SPA.bin",
+            "image_size": 897_286_144,
+            "md5": "a3f1e2d4c5b6789012345678abcdef01",
         },
         file_server={
             "ip": "10.10.10.5",
             "protocol": "http",
+            "base_path": "/images/cisco/cat9k",
         },
         connection_mode=CONNECTION_MODE,
     )
