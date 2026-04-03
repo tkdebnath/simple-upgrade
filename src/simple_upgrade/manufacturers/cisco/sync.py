@@ -30,13 +30,14 @@ class CiscoSyncTask(BaseTask):
         res_version = self.conn.send_command("show version")
         res_hostname = self.conn.get_prompt()
         
+        data = {}
         hostname = None
         version = None
         model = None
-        manufacturer = "cisco"
+        platform = None
+        manufacturer = "Cisco"
         boot_file = None
         uptime = None
-        chassis_sn = None
 
         if res_hostname:
             hostname = res_hostname.replace("#", "").replace(">", "").strip()
@@ -51,6 +52,8 @@ class CiscoSyncTask(BaseTask):
                     hostname = parse_version.get("version", {}).get("hostname", "") 
                 # version
                 version = parse_version.get("version", {}).get("version", "")
+                # platform
+                platform = parse_version.get("version", {}).get("os", "")
                 # model
                 model = parse_version.get("version", {}).get("chassis", "")
                 if not model:
@@ -74,11 +77,26 @@ class CiscoSyncTask(BaseTask):
         self.ctx.device_info.hostname = hostname
         self.ctx.device_info.manufacturer = manufacturer
         self.ctx.device_info.model = model
+        self.ctx.device_info.platform = platform
         self.ctx.device_info.version = version
         self.ctx.device_info.boot_file = boot_file
         self.ctx.device_info.uptime = uptime
-        self.ctx.device_info.chassis_sn = chassis_sn
+        self.ctx.device_info.serial = chassis_sn
+
+        #insert all attributes of device_info to data
+        data = self.ctx.device_info.__dict__
 
         info = self.ctx.device_info
-        return self._success(f"Discovered {info.manufacturer} {info.model} ({info.hostname}) on v{info.version}")
+        
+        # ── Hardware Validation Gate ───────────────────────────────────────
+        # Reject the workflow immediately if the device is not authorized
+        from .activation import C9300_PATTERN
+        if not C9300_PATTERN.search(info.model):
+            return self._fail(
+                f"Unauthorized Hardware: Discovered '{info.model}'. "
+                "Only C9300-family hardware platforms are authorized for this pipeline.",
+                data=data
+            )
+
+        return self._success(f"Discovered {info.manufacturer} {info.model} ({info.hostname}) on v{info.version}", data=data)
 
