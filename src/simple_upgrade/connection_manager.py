@@ -23,7 +23,7 @@ class ConnectionManager:
         host: str,
         username: str,
         password: str,
-        device_type: Optional[str] = None,
+        platform: str,
         port: int = 22,
         timeout: int = 30,
         connection_mode: str = "normal",  # normal, mock, dry_run
@@ -34,7 +34,7 @@ class ConnectionManager:
         self.username = username
         self.password = password
         self.enable_password = enable_password
-        self.device_type = device_type
+        self.platform = platform
         self.port = port
         self.timeout = timeout
         self.connection_mode = connection_mode
@@ -120,8 +120,8 @@ class ConnectionManager:
         return {}
 
     def _get_mapped_platform(self, library: str) -> str:
-        """Map generic device_type to library-specific platform."""
-        dtype = (self.device_type or "cisco_iosxe").lower().replace("-", "_")
+        """Map generic platform to library-specific platform."""
+        dtype = (self.platform or "cisco_iosxe").lower().replace("-", "_")
         
         # Direct lookup in constants
         if dtype in PLATFORM_MAPPINGS:

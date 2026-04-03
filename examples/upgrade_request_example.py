@@ -94,7 +94,7 @@ def example_inline_config():
 
         # ── Manufacturer & platform ──────────────────────────────────
         manufacturer="cisco",
-        device_type="cisco_iosxe",
+        platform="cisco_iosxe",
 
         # ── Golden image dict (converted to GoldenImage internally) ──
         golden_image={
@@ -138,7 +138,7 @@ def example_model_objects():
         password="C!sc0Admin",
         enable_password="Enabl3S3cret!",   # optional — needed for 'enable' mode
         manufacturer="cisco",
-        device_type="cisco_iosxe",
+        platform="cisco_iosxe",
         connection_mode=CONNECTION_MODE,
         golden_image=golden_image.model_dump() if hasattr(golden_image, 'model_dump') else golden_image,
         file_server=file_server.model_dump() if hasattr(file_server, 'model_dump') else file_server,
@@ -164,7 +164,7 @@ def example_stage_by_stage():
         password="C!sc0Admin",
         enable_password="Enabl3S3cret!",   # optional
         manufacturer="cisco",
-        device_type="cisco_iosxe",
+        platform="cisco_iosxe",
         connection_mode=CONNECTION_MODE,
         golden_image=golden_image.model_dump() if hasattr(golden_image, 'model_dump') else golden_image,
         file_server=file_server.model_dump() if hasattr(file_server, 'model_dump') else file_server,
@@ -218,7 +218,7 @@ def example_full_execute():
         password="C!sc0Admin",
         enable_password="Enabl3S3cret!",   # optional
         manufacturer="cisco",
-        device_type="cisco_iosxe",
+        platform="cisco_iosxe",
         golden_image={
             "version": "17.09.04a",
             "image_name": "cat9k_iosxe.17.09.04a.SPA.bin",
@@ -278,7 +278,7 @@ def example_multi_device():
     for device in devices:
         upgrade = UpgradePackage(
             **device,
-            device_type="cisco_iosxe",
+            platform="cisco_iosxe",
             golden_image=shared_image,
             file_server=shared_server,
             connection_mode=CONNECTION_MODE,

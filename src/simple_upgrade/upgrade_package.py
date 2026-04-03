@@ -38,11 +38,11 @@ class UpgradePackage:
         host: str,
         username: str,
         password: str,
+        platform: str,
         port: int = 22,
         manufacturer: str = "cisco",
         golden_image: Optional[Dict[str, Any]] = None,
         file_server: Optional[Dict[str, Any]] = None,
-        device_type: Optional[str] = None,
         connection_mode: str = "normal",
         enable_password: Optional[str] = None,   # enable / privilege-exec secret
         **kwargs
@@ -53,14 +53,12 @@ class UpgradePackage:
         # Initialize Core components
         self._connection_manager = ConnectionManager(
             host=host, username=username, password=password, port=port,
-            device_type=device_type, connection_mode=connection_mode,
+            platform=platform, connection_mode=connection_mode,
             enable_password=enable_password,
             **kwargs
         )
 
         # ── Safely structure payload to trigger Pydantic validation ─────
-        # If no config is provided (e.g. for a pure mock run), supply valid dummy data 
-        # so Pydantic doesn't crash on the newly enforced strict schemas.
         if not golden_image:
             golden_image = {"version": "unknown", "image_name": "unknown", "image_size": 1, "md5": "x"}
         if not file_server:
@@ -68,10 +66,10 @@ class UpgradePackage:
 
         self.ctx = ExecutionContext(
             connection_manager=self._connection_manager,
-            golden_image=GoldenImage(**golden_image),  # Pydantic validates here natively!
-            file_server=FileServer(**file_server),     # Pydantic validates here natively!
+            golden_image=GoldenImage(**golden_image),
+            file_server=FileServer(**file_server),
             connection_mode=connection_mode,
-            device_type=device_type,
+            device_type=platform,  # We still map to device_type on ExecutionContext for backwards compat internally
             manufacturer=manufacturer
         )
 
@@ -81,8 +79,10 @@ class UpgradePackage:
             raise ValueError("UpgradePackage initialization failed: 'host', 'username', and 'password' are strictly required.")
             
         # 2. Platform & Classification
-        if not manufacturer or not device_type:
-            raise ValueError("UpgradePackage initialization failed: 'manufacturer' and 'device_type' (platform) are strictly required.")
+        if not manufacturer or not platform:
+            raise ValueError("UpgradePackage initialization failed: 'manufacturer' and 'platform' are strictly required.")
+        if manufacturer.lower() != "cisco":
+            raise ValueError(f"UpgradePackage initialization failed: Only 'cisco' is a valid manufacturer, but got '{manufacturer}'.")
     # ── Orchestration ─────────────────────────────────────────────────
 
     def run_stage(self, stage: str) -> StageResult:
