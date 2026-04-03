@@ -44,6 +44,7 @@ class UpgradePackage:
         file_server: Optional[Dict[str, Any]] = None,
         device_type: Optional[str] = None,
         connection_mode: str = "normal",
+        enable_password: Optional[str] = None,   # enable / privilege-exec secret
         **kwargs
     ):
         self.host = host
@@ -53,6 +54,7 @@ class UpgradePackage:
         self._connection_manager = ConnectionManager(
             host=host, username=username, password=password, port=port,
             device_type=device_type, connection_mode=connection_mode,
+            enable_password=enable_password,
             **kwargs
         )
 

@@ -27,11 +27,13 @@ class ConnectionManager:
         port: int = 22,
         timeout: int = 30,
         connection_mode: str = "normal",  # normal, mock, dry_run
+        enable_password: Optional[str] = None,  # privilege-exec / enable secret
         **kwargs
     ):
         self.host = host
         self.username = username
         self.password = password
+        self.enable_password = enable_password
         self.device_type = device_type
         self.port = port
         self.timeout = timeout
@@ -72,7 +74,7 @@ class ConnectionManager:
         platform = self._get_mapped_platform(library)
         
         if library == "scrapli":
-            return {
+            params: Dict[str, Any] = {
                 "host": self.host,
                 "port": self.port,
                 "auth_username": self.username,
@@ -81,14 +83,22 @@ class ConnectionManager:
                 "auth_strict_key": False,
                 "timeout_socket": self.timeout,
             }
+            # Scrapli uses auth_secondary for the enable / privilege-exec password
+            if self.enable_password:
+                params["auth_secondary"] = self.enable_password
+            return params
         
         if library == "unicon":
+            credentials: Dict[str, Any] = {
+                "default": {"username": self.username, "password": self.password}
+            }
+            # Unicon uses a separate 'enable' credential entry
+            if self.enable_password:
+                credentials["enable"] = {"password": self.enable_password}
             return {
                 "os": platform,
                 "hostname": self.host,
-                "credentials": {
-                    "default": {"username": self.username, "password": self.password}
-                },
+                "credentials": credentials,
                 "start": [f"ssh {self.username}@{self.host}"],
                 "timeout": self.timeout
             }

@@ -86,6 +86,12 @@ def example_inline_config():
         password="C!sc0Admin",
         port=22,
 
+        # ── Enable / privilege-exec password (optional) ───────────────
+        # Required when the device needs "enable" after SSH login.
+        # Maps to auth_secondary in Scrapli and credentials[enable]
+        # in Unicon. Leave as None if not needed.
+        enable_password="Enabl3S3cret!",
+
         # ── Manufacturer & platform ──────────────────────────────────
         manufacturer="cisco",
         device_type="cisco_iosxe",
@@ -130,6 +136,7 @@ def example_model_objects():
         host="192.168.1.10",
         username="admin",
         password="C!sc0Admin",
+        enable_password="Enabl3S3cret!",   # optional — needed for 'enable' mode
         manufacturer="cisco",
         device_type="cisco_iosxe",
         connection_mode=CONNECTION_MODE,
@@ -157,6 +164,7 @@ def example_stage_by_stage():
         host="192.168.1.10",
         username="admin",
         password="C!sc0Admin",
+        enable_password="Enabl3S3cret!",   # optional
         manufacturer="cisco",
         device_type="cisco_iosxe",
         connection_mode=CONNECTION_MODE,
@@ -210,6 +218,7 @@ def example_full_execute():
         host="192.168.1.10",
         username="admin",
         password="C!sc0Admin",
+        enable_password="Enabl3S3cret!",   # optional
         manufacturer="cisco",
         device_type="cisco_iosxe",
         golden_image={
@@ -245,9 +254,9 @@ def example_multi_device():
     print("=" * 65)
 
     devices = [
-        {"host": "192.168.1.10", "username": "admin",   "password": "C!sc0Admin",  "manufacturer": "cisco"},
-        {"host": "192.168.1.11", "username": "netops",  "password": "N3t0ps2024!", "manufacturer": "cisco"},
-        {"host": "192.168.1.12", "username": "svcacct", "password": "Svc@99!xK",   "manufacturer": "cisco"},
+        {"host": "192.168.1.10", "username": "admin",   "password": "C!sc0Admin",  "enable_password": "Enabl3S3cret!", "manufacturer": "cisco"},
+        {"host": "192.168.1.11", "username": "netops",  "password": "N3t0ps2024!", "enable_password": None,             "manufacturer": "cisco"},
+        {"host": "192.168.1.12", "username": "svcacct", "password": "Svc@99!xK",   "enable_password": "Svc@Enable99!", "manufacturer": "cisco"},
     ]
 
     shared_image = {
