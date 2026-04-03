@@ -26,7 +26,7 @@ C9300_PATTERN = re.compile(
 SAVE_DIALOG = Dialog([
     Statement(
         pattern=r'Destination filename \[startup-config\]\?',
-        action='sendline(y)',
+        action='sendline()',
         loop_continue=False,
         continue_timer=False,
     ),
@@ -78,10 +78,10 @@ class CiscoActivationTask(BaseTask):
             # 2. Push boot config
             self._push_boot_config(conn)
 
-            # 3. Save config
+            # 3. Save config — MUST succeed before activation proceeds
             result = self._save_config(conn)
             if not result.success:
-                return result   # non-fatal warning logged, but we continue
+                return result   # abort: config not saved, unsafe to activate
         else:
             self._log(f"Model '{model}' — skipping C9300-specific pre-config")
 
@@ -139,9 +139,8 @@ class CiscoActivationTask(BaseTask):
             self._log("Config saved ✓")
             return self._success("Config saved")
         except Exception as e:
-            self._log(f"⚠️  Warning: config save failed: {e}")
-            # Non-fatal — return success so activation still proceeds
-            return self._success(f"Config save warning: {e}")
+            self._log(f"Config save failed: {e}")
+            return self._fail(f"Config save failed — aborting activation: {e}")
 
     def _log(self, msg: str) -> None:
         print(f"[activate] {msg}")
