@@ -74,7 +74,8 @@ class CiscoCheckTask(BaseTask):
     def _save_to_disk(self, stage: str, results: dict) -> None:
         """Write each command output to output/<hostname>/<stage>/<cmd>.txt"""
         hostname = self.ctx.device_info.hostname or "device"
-        base_dir = os.path.join("output", hostname, stage)
+        folder   = stage.replace("_", "")          # pre_check → precheck
+        base_dir = os.path.join("output", hostname, folder)
         os.makedirs(base_dir, exist_ok=True)
 
         for key, raw in results.items():
