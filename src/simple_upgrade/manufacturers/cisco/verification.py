@@ -48,20 +48,12 @@ class CiscoVerificationTask(BaseTask):
         """
         # ── Try Genie first ───────────────────────────────────────────────
         try:
-            from genie.testbed import load as load_testbed
-            from genie.conf.base import Device as GenieDevice
-
-            platform = (self.ctx.device_type or "iosxe").replace("cisco_", "")
-            dev = GenieDevice(
-                name=self.ctx.device_info.hostname or "dut",
-                os=platform,
-            )
-            dev.connections = {"default": self.conn}
-            dev.default = self.conn
-
-            parsed = dev.parse("show version")
+            res = self.conn.send_command("show version")
+            parsed = res.genie_parse_output()
             # Genie returns: parsed['version']['version']
-            return parsed.get("version", {}).get("version", "Unknown")
+            if parsed:
+                return parsed.get("version", {}).get("version", "Unknown")
+
 
         except Exception:
             pass  # Genie not available or parse failed — fall back

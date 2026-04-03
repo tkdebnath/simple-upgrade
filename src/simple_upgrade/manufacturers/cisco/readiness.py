@@ -21,17 +21,14 @@ class CiscoReadinessTask(BaseTask):
         if self.ctx.connection_mode != "normal":
             return self._success("[MOCK] Device is ready for upgrade")
 
-        # ── 1. Parse 'show file systems' using headless Genie ─────────
+        # ── 1. Scrapli send_command with genie_parse_output() ─────────
         try:
-            from genie.conf.base import Device as GenieDevice
-            platform = (self.ctx.device_type or "iosxe").replace("cisco_", "")
-            dev = GenieDevice(name="dut", os=platform)
-            dev.connections = {"default": self.conn}
-            dev.default = self.conn
-            
-            parsed_fs = dev.parse("show file systems")
+            res_fs = self.conn.send_command("show file systems")
+            parsed_fs = res_fs.genie_parse_output()
+            if not parsed_fs:
+                return self._fail("Genie parsing for 'show file systems' returned empty")
         except Exception as e:
-            return self._fail(f"Could not parse file systems via Genie: {e}")
+            return self._fail(f"Could not parse file systems via Scrapli Genie mixin: {e}")
 
         # ── 2. Run custom helper check logic ───────────────────────────
         img_size = self.ctx.golden_image.image_size
