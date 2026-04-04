@@ -53,16 +53,22 @@ class CiscoDistributeTask(BaseTask):
         dest   = "flash:"
         
         vrf_str = f"vrf {fs.source_vrf} " if getattr(fs, "source_vrf", None) else ""
+
+        # VRF is not supported in http/https
+        if fs.protocol in ("http", "https"):
+            vrf_str = ""
+
         cmd    = f"copy {vrf_str}{url} {dest}"
 
         if self.ctx.connection_mode != "normal":
-            return self._success(f"[MOCK] Would execute: {cmd}")
+            return self._success(f"[MOCK] Would execute: {cmd}", command=cmd)
 
         conn = self.unicon   # Unicon required for interactive prompt handling
+        self.ctx.data['distribution_cmd'] = cmd
 
         # ── Smart-skip: check if file already exists and is valid ──────────
         if self._file_valid(conn, img, dest):
-            return self._success(f"{img} already present and verified — skipping download")
+            return self._success(f"{img} already present and verified, skipping download", command=cmd)
 
         # ── Apply protocol-specific device configuration ────────────────────
         self._apply_protocol_config(conn, fs)
@@ -73,14 +79,14 @@ class CiscoDistributeTask(BaseTask):
 
         # ── Verify transfer succeeded (bytes copied in output) ─────────────
         if not self._transfer_ok(result, img, dest, conn):
-            return self._fail(f"Transfer failed or file not found on {dest} after copy")
+            return self._fail(f"Transfer failed or file not found on {dest} after copy", command=cmd)
 
         # ── Post-download MD5 verification ─────────────────────────────────
         if self.ctx.golden_image.md5:
             if not self._verify_md5(conn, img, self.ctx.golden_image.md5, dest):
-                return self._fail("Post-download MD5 verification failed")
+                return self._fail("Post-download MD5 verification failed", command=cmd)
 
-        return self._success(f"Successfully distributed {img} to {dest}")
+        return self._success(f"Successfully distributed {img} to {dest}", command=cmd)
 
     # ── Helpers ────────────────────────────────────────────────────────────
 
@@ -139,13 +145,13 @@ class CiscoDistributeTask(BaseTask):
 
         expected = self.ctx.golden_image.image_size
         if expected and size_on_device != expected:
-            self._log(f"Size mismatch: expected {expected:,} got {size_on_device:,} — re-downloading")
+            self._log(f"Size mismatch: expected {expected:,} got {size_on_device:,}, re-downloading")
             return False
 
         if self.ctx.golden_image.md5:
             return self._verify_md5(conn, filename, self.ctx.golden_image.md5, dest)
 
-        self._log(f"File found ({size_on_device:,} bytes) but no MD5 provided — re-downloading to ensure integrity")
+        self._log(f"File found ({size_on_device:,} bytes) but no MD5 provided, re-downloading to ensure integrity")
         return False
 
     def _get_file_size(self, conn, filename: str, dest: str):

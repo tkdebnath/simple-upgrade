@@ -96,9 +96,9 @@ class CiscoActivationTask(BaseTask):
         output = conn.execute(cmd, timeout=3600, reply=INSTALL_DIALOG)
 
         if re.search(r'\bError\b|\bFailed\b', output, re.IGNORECASE):
-            return self._fail(f"Activation failed. Device output: {output[:300]}")
+            return self._fail(f"Activation failed. Device output: {output[:300]}", command=cmd)
 
-        return self._success("Activation initiated — device reloading")
+        return self._success("Activation initiated, device reloading", command=cmd)
 
     # ── Helpers ─────────────────────────────────────────────────────────────
 
