@@ -49,16 +49,25 @@ class CiscoDistributeTask(BaseTask):
         base   = fs.base_path.strip("/")
         path   = f"{base}/{img}" if base else img
         port   = f":{fs.port}" if fs.port else ""
-        url    = f"{fs.protocol}://{fs.ip}{port}/{path}"
-        dest   = "flash:"
+        profile = self.ctx.device_info.extra.get('device_profile', {})
+        upgrade_cmds = profile.get("upgrade_commands", {})
+
+        # 1. Resolve distribution string structurally from JSON architecture
+        cmd_template = upgrade_cmds.get("copy_image", "copy {protocol}://{server}/{path}/{image} flash:/{image}")
         
+        # Inject values natively
+        cmd = cmd_template.replace("{protocol}", fs.protocol)
+        cmd = cmd.replace("{server}", f"{fs.ip}{port}")
+        cmd = cmd.replace("{path}", base)
+        cmd = cmd.replace("{image}", img)
+
+        # 2. Prepend VRF parameters specifically if strictly mapped
         vrf_str = f"vrf {fs.source_vrf} " if getattr(fs, "source_vrf", None) else ""
-
-        # VRF is not supported in http/https
         if fs.protocol in ("http", "https"):
-            vrf_str = ""
-
-        cmd    = f"copy {vrf_str}{url} {dest}"
+            vrf_str = "" # VRF is explicitly disallowed for http/https mappings
+            
+        if vrf_str and "vrf" not in cmd:
+            cmd = cmd.replace("copy ", f"copy {vrf_str}")
 
         if self.ctx.connection_mode != "normal":
             return self._success(f"[MOCK] Would execute: {cmd}", command=cmd)
@@ -166,13 +175,21 @@ class CiscoDistributeTask(BaseTask):
             return None
 
     def _verify_md5(self, conn, filename: str, expected: str, dest: str) -> bool:
-        """Run 'verify /md5' on device and compare checksum."""
+        """Run verification mechanically by strictly extracting template from JSON architecture."""
         self._log(f"Verifying MD5 for {filename}…")
+        
+        # Extract native syntax from profile payloads
+        profile = self.ctx.device_info.extra.get('device_profile', {})
+        upgrade_cmds = profile.get("upgrade_commands", {})
+        cmd_template = upgrade_cmds.get("verify_image", "verify /md5 flash:/{image} {md5}")
+        
+        # Dynamically inject the runtime verification keys
+        cmd = cmd_template.replace("{image}", filename)
+        cmd = cmd.replace("{md5}", expected)
+        cmd = cmd.replace("{checksum}", expected) # Backwards compat
+
         try:
-            out = conn.execute(
-                f"verify /md5 {dest}{filename} {expected}",
-                timeout=600   # 10 min — large images on slow flash
-            )
+            out = conn.execute(cmd, timeout=600)   # 10 min — large images on slow flash
             if "Verified" in out:
                 self._log("MD5 verified ✓")
                 return True
