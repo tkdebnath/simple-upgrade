@@ -47,6 +47,7 @@ class UpgradePackage:
         connection_mode: str = "normal",
         enable_password: Optional[str] = None,   # enable / privilege-exec secret
         source_interface: Optional[str] = None,  # Elevated connectivity property
+        source_vrf: Optional[str] = None,        # Elevated VRF context constraint
         **kwargs
     ):
         self.host = host
@@ -66,9 +67,11 @@ class UpgradePackage:
         if not file_server:
             file_server = {"ip": "127.0.0.1", "base_path": "/"}
 
-        # Transparently proxy root source_interface down into the file engine map
+        # Transparently proxy root parameters down into the file engine map
         if source_interface and "source_interface" not in file_server:
             file_server["source_interface"] = source_interface
+        if source_vrf and "source_vrf" not in file_server:
+            file_server["source_vrf"] = source_vrf
 
         self.ctx = ExecutionContext(
             connection_manager=self._connection_manager,

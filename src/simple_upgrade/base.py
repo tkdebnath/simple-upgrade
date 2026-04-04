@@ -34,6 +34,7 @@ class FileServer(BaseModel):
     username: Optional[str] = None
     password: Optional[str] = None
     source_interface: Optional[str] = None
+    source_vrf: Optional[str] = None
 
 
 class DeviceInfo(BaseModel):

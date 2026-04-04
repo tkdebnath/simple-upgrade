@@ -51,7 +51,9 @@ class CiscoDistributeTask(BaseTask):
         port   = f":{fs.port}" if fs.port else ""
         url    = f"{fs.protocol}://{fs.ip}{port}/{path}"
         dest   = "flash:"
-        cmd    = f"copy {url} {dest}"
+        
+        vrf_str = f"vrf {fs.source_vrf} " if getattr(fs, "source_vrf", None) else ""
+        cmd    = f"copy {vrf_str}{url} {dest}"
 
         if self.ctx.connection_mode != "normal":
             return self._success(f"[MOCK] Would execute: {cmd}")
