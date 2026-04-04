@@ -1,0 +1,27 @@
+{
+  "commands": {
+    "show_version": "show version",
+    "show_inventory": "show inventory",
+    "show_running_config": "show running-config",
+    "show_environment": "show environment",
+    "dir": "dir"
+  },
+  "upgrade_commands": {
+    "check_free_space": "dir | include bytes total",
+    "copy_image": "copy {protocol}://{server}/{path}/{image} flash:/{image}",
+    "verify_image": "verify /md5 flash:/{image}",
+    "install_add": "install add file flash:/{image} activate commit",
+    "verify_install": "show install active"
+  },
+  "boot_commands": [
+    "no boot system",
+    "boot system flash:packages.conf",
+    "no boot manual",
+    "no system ignore startupconfig switch all"
+  ],
+  "upgrade_notes": [
+    "This device utilizes the standard install add/activate/commit workflow.",
+    "Verify checksum and flash space strictly."
+  ],
+  "default_image_location": "flash:/"
+}

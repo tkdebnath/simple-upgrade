@@ -1,15 +1,14 @@
 {
   "manufacturer": "Cisco",
   "model": "catalyst_9300x",
+  "models": ["C9300X.*", "Catalyst 9300X"],
+  "group": "install_mode",
   "mode": "switch",
   "series": "Catalyst 9300X",
   "platform": "cisco_iosxe",
   "device_type": "cisco_xe",
   "description": "Cisco Catalyst 9300X Series Switches",
   "commands": {
-    "show_version": "show version",
-    "show_inventory": "show inventory",
-    "show_running_config": "show running-config",
     "show_interfaces_status": "show interfaces status",
     "show_mac_address_table": "show mac address-table",
     "show_ip_route": "show ip route",
@@ -18,18 +17,11 @@
     "show_stp_summary": "show spanning-tree summary",
     "show_stackwise": "show stackwise",
     "show_power_stack": "show power stack",
-    "show_environment": "show environment",
     "show_licenses": "show licenses",
-    "show_install_active": "show install active",
-    "dir": "dir"
+    "show_install_active": "show install active"
   },
   "upgrade_commands": {
-    "check_free_space": "dir | include bytes total",
-    "copy_image": "copy {protocol}://{server}/{path}/{image} flash:/{image}",
-    "verify_image": "verify /md5 flash:/{image}",
-    "install_add": "install add file flash:/{image} activate commit",
-    "install_commit": "install commit",
-    "verify_install": "show install active"
+    "install_commit": "install commit"
   },
   "verification_commands": {
     "check_version": "show version | include Version",
@@ -44,10 +36,7 @@
     "reload_device": "reload"
   },
   "upgrade_notes": [
-    "C9300X uses install add/activate/commit workflow",
-    "Ensure sufficient flash space before upgrade",
-    "Verify checksum after copy"
+    "C9300X uses specific virtual stack topologies."
   ],
-  "flash_size": "4GB",
-  "default_image_location": "flash:/"
+  "flash_size": "4GB"
 }
