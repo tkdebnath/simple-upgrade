@@ -27,8 +27,8 @@ class CiscoSyncTask(BaseTask):
             return self._success(f"[MOCK] Synchronised device info: {self.ctx.device_info.hostname}")
 
         # Send command via scrapli
-        res_version = self.conn.send_command("show version")
-        res_hostname = self.conn.get_prompt()
+        res_version = self.scrapli.send_command("show version")
+        res_hostname = self.scrapli.get_prompt()
         
         data = {}
         hostname = None

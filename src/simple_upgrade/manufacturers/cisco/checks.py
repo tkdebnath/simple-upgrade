@@ -56,7 +56,7 @@ class CiscoCheckTask(BaseTask):
             try:
                 # configs can be large — allow extra time
                 timeout_val = 120 if "config" in cmd else 60
-                output = self.conn.send_command(cmd, timeout_ops=timeout_val)
+                output = self.scrapli.send_command(cmd, timeout_ops=timeout_val)
                 captured[key] = output.result
             except Exception as e:
                 print(f"Warning: Command '{cmd}' failed: {e}")

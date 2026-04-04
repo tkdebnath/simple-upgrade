@@ -8,7 +8,7 @@ Falls back to 'show version | include Version' if Genie unavailable.
 
 from ...registry import register_stage
 from ...base import BaseTask, StageResult
-from netutils.os_version import compare_version_loose
+from netutils.os_version import compare_version_strict
 
 
 @register_stage('verification', 'cisco')
@@ -31,14 +31,14 @@ class CiscoVerificationTask(BaseTask):
         if current == "Unknown":
             return self._fail("Could not determine current version from 'show version'")
 
-        if compare_version_loose(current, "==", target):
+        if compare_version_strict(current, "==", target):
             return self._success(
                 f"Version verified: {current}",
                 data={"current_version": current, "target_version": target}
             )
 
         # If it's not equal, provide context on whether it's higher or lower but guarantee a return
-        if compare_version_loose(current, ">", target):
+        if compare_version_strict(current, ">", target):
             msg = f"Version mismatch — current ({current}) is unexpectedly HIGHER than target ({target})"
         else:
             msg = f"Version mismatch — current ({current}) failed to upgrade to target ({target})"
@@ -51,7 +51,7 @@ class CiscoVerificationTask(BaseTask):
         """
         # ── Try Genie first ───────────────────────────────────────────────
         try:
-            res = self.conn.send_command("show version")
+            res = self.scrapli.send_command("show version")
             parsed = res.genie_parse_output()
             # Genie returns: parsed['version']['version']
             if parsed:
