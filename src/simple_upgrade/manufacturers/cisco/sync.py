@@ -119,11 +119,28 @@ class CiscoSyncTask(BaseTask):
                             break
                     
                     if matched_model:
-                        # Validate OS footprint (IOS-XE vs standard cisco_iosxe generic)
-                        prof_platform = profile.get("platform", "").lower()
-                        prof_device_type = profile.get("device_type", "").lower()
+                        # Validate OS footprint (allow both string and list arrays for platforms)
+                        prof_platforms = profile.get("platforms", profile.get("platform", ""))
+                        if isinstance(prof_platforms, str):
+                            prof_platforms = [prof_platforms]
                         
-                        if (prof_platform in os_platform or prof_device_type in os_platform) or (os_platform in prof_platform) or os_platform == "":
+                        prof_device_types = profile.get("device_types", profile.get("device_type", ""))
+                        if isinstance(prof_device_types, str):
+                            prof_device_types = [prof_device_types]
+                            
+                        # Normalize active platform names
+                        allowed_sys = [p.lower() for p in prof_platforms + prof_device_types if p]
+                        
+                        matched_os = False
+                        if os_platform == "":
+                            matched_os = True
+                        else:
+                            for sys in allowed_sys:
+                                if sys in os_platform or os_platform in sys:
+                                    matched_os = True
+                                    break
+
+                        if matched_os:
                             resolved_profile = profile
                             break
                             
