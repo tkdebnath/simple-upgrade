@@ -158,19 +158,23 @@ class UpgradePackage:
         host = self.host
         port = self.device_kwargs.get("port", 22)
         
+        # Pull timers from device_kwargs root or use standard defaults
+        wait_delay  = self.device_kwargs.get("post_wait_delay", 30)
+        max_retries = self.device_kwargs.get("post_wait_retries", 60)
+        convergence = self.device_kwargs.get("post_wait_convergence", 60)
+        
         # 1. Immediate severance: Safely close existing SSH sockets
         try:
             self._connection_manager.disconnect()
         except Exception:
             pass
 
-        # 2. Wait for device to go OFF-LINE safely (give it 30s to drop interfaces)
-        print(f"\n[wait] Waiting for {host} to go offline...")
-        time.sleep(30)
+        # 2. Wait for device to go OFF-LINE safely
+        self._log_wait(f"Waiting {wait_delay}s for {host} to go offline...")
+        time.sleep(wait_delay)
             
-        # 3. Smart Sweep for Up-state (TCP Socket on port 22)
-        print(f"[wait] Beginning SSH TCP Sweep on {host}:{port}...")
-        max_retries = 60 # 60 * 15s = 15 minutes max
+        # 3. Smart Sweep for Up-state (TCP Socket on port)
+        self._log_wait(f"Beginning SSH TCP Sweep on {host}:{port} (Max Retries: {max_retries})...")
         is_up = False
         
         for attempt in range(max_retries):
@@ -178,7 +182,7 @@ class UpgradePackage:
                 # Try a 3-second TCP handshake on the exact SSH port
                 with socket.create_connection((host, port), timeout=3):
                     is_up = True
-                    print(f"\n[wait] TCP {port} is OPEN! Device is back online (attempt {attempt+1}).")
+                    self._log_wait(f"TCP {port} is OPEN! Device is back online (attempt {attempt+1}).")
                     break
             except (socket.timeout, ConnectionRefusedError, OSError):
                 # Device is still rebooting
@@ -186,19 +190,22 @@ class UpgradePackage:
                 time.sleep(15)
                 
         if not is_up:
-            msg = f"Device {host} completely failed to return online after 15 minutes."
+            msg = f"Device {host} completely failed to return online after {max_retries * 15} seconds."
             res = StageResult(success=False, message=msg, errors=[msg])
             self.ctx.stage_results['post_activation_wait'] = res
             return res
 
         # 4. Stabilization Delay
         # SSH port might be open instantly, but routing protocols/BGP need time to converge
-        print("[wait] SSH port detected! Waiting 60 seconds for STP and Routing convergence...")
-        time.sleep(60)
+        self._log_wait(f"SSH port detected! Waiting {convergence}s for STP and Routing convergence...")
+        time.sleep(convergence)
         
         res = StageResult(success=True, message="Device reloaded and completely stabilized.")
         self.ctx.stage_results['post_activation_wait'] = res
         return res
+
+    def _log_wait(self, msg: str) -> None:
+        print(f"[wait] {msg}")
 
     # ── Compatibility Aliases ─────────────────────────────────────────
 
