@@ -52,6 +52,14 @@ class ConnectionManager:
             return self._get_mock_connection(library)
 
         if library == "scrapli":
+            if self._scrapli:
+                try:
+                    if not self._scrapli.isalive():
+                        print(f"Warning: Scrapli connection to {self.host} dropped natively. Reconnecting...")
+                        self._scrapli = None
+                except Exception:
+                    self._scrapli = None
+
             if not self._scrapli:
                 from scrapli import Scrapli
                 params = self._get_params("scrapli")
@@ -60,6 +68,14 @@ class ConnectionManager:
             return self._scrapli
 
         if library == "unicon":
+            if self._unicon:
+                try:
+                    if not getattr(self._unicon, "connected", True):
+                        print(f"Warning: Unicon session to {self.host} dropped natively. Reconnecting...")
+                        self._unicon = None
+                except Exception:
+                    self._unicon = None
+
             if not self._unicon:
                 from unicon import Connection
                 params = self._get_params("unicon")
