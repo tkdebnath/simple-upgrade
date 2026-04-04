@@ -46,6 +46,7 @@ class UpgradePackage:
         file_server: Optional[Dict[str, Any]] = None,
         connection_mode: str = "normal",
         enable_password: Optional[str] = None,   # enable / privilege-exec secret
+        source_interface: Optional[str] = None,  # Elevated connectivity property
         **kwargs
     ):
         self.host = host
@@ -64,6 +65,10 @@ class UpgradePackage:
             golden_image = {"version": "unknown", "image_name": "unknown", "image_size": 1, "md5": "x"}
         if not file_server:
             file_server = {"ip": "127.0.0.1", "base_path": "/"}
+
+        # Transparently proxy root source_interface down into the file engine map
+        if source_interface and "source_interface" not in file_server:
+            file_server["source_interface"] = source_interface
 
         self.ctx = ExecutionContext(
             connection_manager=self._connection_manager,
