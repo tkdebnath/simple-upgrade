@@ -16,12 +16,6 @@ from ...registry import register_stage
 from ...base import BaseTask, StageResult
 
 
-# ── C9300 family model patterns ───────────────────────────────────────────
-C9300_PATTERN = re.compile(
-    r"C9300|Catalyst\s*9300|C9300L|C9300X|C9300-\d+|C9KV-UADP-8P",
-    re.IGNORECASE
-)
-
 # ── Dialog: prompts during 'copy running-config startup-config' ───────────
 SAVE_DIALOG = Dialog([
     Statement(
@@ -58,36 +52,46 @@ class CiscoActivationTask(BaseTask):
     def name(self) -> str: return "activate"
 
     def run(self, **kwargs) -> StageResult:
-        """Execute activation with model-aware pre-configuration."""
-        img   = self.ctx.golden_image.image_name
-        model = self.ctx.device_info.model or ""
-        cmd   = f"install add file flash:{img} activate commit"
+        """Execute activation with dynamic configuration exclusively from JSON profiles."""
+        img     = self.ctx.golden_image.image_name
+        profile = self.ctx.device_info.extra.get('device_profile', {})
+        
+        # 1. Resolve exact activation string from JSON (fallback to standard install string)
+        upgrade_cmds = profile.get("upgrade_commands", {})
+        
+        # Check standard activation paths. If VIOS dictates install_commit, we support overriding logic if requested
+        # For now, it mechanically extracts install_add.
+        cmd_template = upgrade_cmds.get("install_add", "install add file flash:/{image} activate commit")
+        cmd = cmd_template.replace("{image}", img)
 
         if self.ctx.connection_mode != "normal":
             return self._success(f"[MOCK] Would execute: {cmd}")
 
         conn = self.unicon
 
-        # ── C9300 family: pre-activation config + save ────────────────────
-        if C9300_PATTERN.search(model):
-            self._log(f"C9300 family ({model}) — applying pre-activation config")
+        # ── Pre-Activation Profile Mapping ────────────────────────────────
+        boot_cmds = profile.get("boot_commands", [])
+        if boot_cmds:
+            self._log(f"Profile demands Boot Sector rewrites. Applying {len(boot_cmds)} commands.")
+            
+            # Push dynamic boot configurations
+            try:
+                self._log(f"Configuring boot params: {boot_cmds}")
+                conn.configure(boot_cmds, timeout=30)
+                self._log("Boot config applied ✓")
+            except Exception as e:
+                self._log(f"⚠️  Warning: boot configuration failed: {e}")
 
-            # 1. Verify INSTALL mode
-            self._verify_install_mode(conn)
-
-            # 2. Push boot config
-            self._push_boot_config(conn)
-
-            # 3. Save config — MUST succeed before activation proceeds
+            # Save config to nvram (essential if boot strings mutate)
             result = self._save_config(conn)
             if not result.success:
                 return result   # abort: config not saved, unsafe to activate
         else:
-            self._log(f"Model '{model}' — skipping C9300-specific pre-config")
+            self._log("No boot_commands found in profile — skipping NVRAM boot sector updates.")
 
-        # ── Execute install command (all platforms) ───────────────────────
+        # ── Execute generic install command mapped by JSON ───────────────────────
         self._log(f"Running: {cmd}")
-        self._log("Device will reload after activation…")
+        self._log("Device will natively reload after activation…")
 
         output = conn.execute(cmd, timeout=3600, reply=INSTALL_DIALOG)
 
@@ -96,36 +100,7 @@ class CiscoActivationTask(BaseTask):
 
         return self._success("Activation initiated — device reloading")
 
-    # ── C9300 helpers ─────────────────────────────────────────────────────
-
-    def _verify_install_mode(self, conn) -> None:
-        """Warn if device is not in INSTALL mode (bundle mode won't work)."""
-        try:
-            out = conn.execute("show version | include Mode", timeout=30)
-            if "INSTALL" not in out.upper():
-                self._log("⚠️  Warning: device may not be in INSTALL mode")
-            else:
-                self._log("INSTALL mode confirmed ✓")
-        except Exception as e:
-            self._log(f"Could not verify install mode: {e}")
-
-    def _push_boot_config(self, conn) -> None:
-        """
-        Configure boot parameters required for C9300 package-based upgrade.
-        Mirrors the reference strategy exactly.
-        """
-        boot_cmds = [
-            "no boot system",
-            "boot system flash:packages.conf",
-            "no boot manual",
-            "no system ignore startupconfig switch all",
-        ]
-        try:
-            self._log(f"Configuring boot params: {boot_cmds}")
-            conn.configure(boot_cmds, timeout=30)
-            self._log("Boot config applied ✓")
-        except Exception as e:
-            self._log(f"⚠️  Warning: boot configuration failed: {e}")
+    # ── Helpers ─────────────────────────────────────────────────────────────
 
     def _save_config(self, conn) -> StageResult:
         """Save running-config → startup-config with Dialog."""
