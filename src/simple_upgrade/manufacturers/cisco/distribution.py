@@ -83,7 +83,7 @@ class CiscoDistributeTask(BaseTask):
         self._apply_protocol_config(conn, fs)
 
         # ── Execute copy with Dialog-based prompt handler ──────────────────
-        self._log(f"Starting transfer: {url} → {dest}")
+        self._log(f"Starting native transfer sequence: {cmd}")
         result = conn.execute(cmd, timeout=3600, reply=COPY_DIALOG)
 
         # ── Verify transfer succeeded (bytes copied in output) ─────────────
