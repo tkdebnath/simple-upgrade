@@ -52,6 +52,14 @@ class ConnectionManager:
             return self._get_mock_connection(library)
 
         if library == "scrapli":
+            # ── VTY Exhaustion Protection ──
+            if self._unicon:
+                try: 
+                    self._unicon.disconnect()
+                except Exception: 
+                    pass
+                self._unicon = None
+
             if self._scrapli:
                 try:
                     if not self._scrapli.isalive():
@@ -68,6 +76,14 @@ class ConnectionManager:
             return self._scrapli
 
         if library == "unicon":
+            # ── VTY Exhaustion Protection ──
+            if self._scrapli:
+                try: 
+                    self._scrapli.close()
+                except Exception: 
+                    pass
+                self._scrapli = None
+                
             if self._unicon:
                 try:
                     if not getattr(self._unicon, "connected", True):
