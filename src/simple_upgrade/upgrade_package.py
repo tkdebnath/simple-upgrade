@@ -147,14 +147,56 @@ class UpgradePackage:
     # ── Built-in Handlers ─────────────────────────────────────────────
 
     def _handle_wait(self) -> StageResult:
-        """Generic stabilization logic used across vendors."""
+        """Intelligently sweep and wait for the device to reload and restore SSH."""
         if self.ctx.connection_mode in ('mock', 'dry_run'):
             res = StageResult(success=True, message="[MOCK] Stabilization done")
-        else:
-            # 10m pause + Ping sweep (simplified)
-            time.sleep(600)
-            res = StageResult(success=True, message="Stabilization delay completed")
+            self.ctx.stage_results['post_activation_wait'] = res
+            return res
+
+        import socket
         
+        host = self.host
+        port = self.device_kwargs.get("port", 22)
+        
+        # 1. Immediate severance: Safely close existing SSH sockets
+        try:
+            self._connection_manager.disconnect()
+        except Exception:
+            pass
+
+        # 2. Wait for device to go OFF-LINE safely (give it 30s to drop interfaces)
+        print(f"\n[wait] Waiting for {host} to go offline...")
+        time.sleep(30)
+            
+        # 3. Smart Sweep for Up-state (TCP Socket on port 22)
+        print(f"[wait] Beginning SSH TCP Sweep on {host}:{port}...")
+        max_retries = 60 # 60 * 15s = 15 minutes max
+        is_up = False
+        
+        for attempt in range(max_retries):
+            try:
+                # Try a 3-second TCP handshake on the exact SSH port
+                with socket.create_connection((host, port), timeout=3):
+                    is_up = True
+                    print(f"\n[wait] TCP {port} is OPEN! Device is back online (attempt {attempt+1}).")
+                    break
+            except (socket.timeout, ConnectionRefusedError, OSError):
+                # Device is still rebooting
+                print(".", end="", flush=True)
+                time.sleep(15)
+                
+        if not is_up:
+            msg = f"Device {host} completely failed to return online after 15 minutes."
+            res = StageResult(success=False, message=msg, errors=[msg])
+            self.ctx.stage_results['post_activation_wait'] = res
+            return res
+
+        # 4. Stabilization Delay
+        # SSH port might be open instantly, but routing protocols/BGP need time to converge
+        print("[wait] SSH port detected! Waiting 60 seconds for STP and Routing convergence...")
+        time.sleep(60)
+        
+        res = StageResult(success=True, message="Device reloaded and completely stabilized.")
         self.ctx.stage_results['post_activation_wait'] = res
         return res
 
