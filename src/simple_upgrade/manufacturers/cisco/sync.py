@@ -140,6 +140,28 @@ class CiscoSyncTask(BaseTask):
                 data=data
             )
             
+        # ── Ansible-style Group Inheritance ────────────────────────────────
+        group_name = resolved_profile.get("group")
+        if group_name:
+            group_file = os.path.join(profiles_dir, "groups", f"{group_name}.json")
+            if os.path.exists(group_file):
+                try:
+                    with open(group_file, "r") as gf:
+                        group_data = json.load(gf)
+                    
+                    # Deep merge: resolved_profile (model) overrides group_data (group)
+                    merged_profile = group_data.copy()
+                    for k, v in resolved_profile.items():
+                        if isinstance(v, dict) and k in merged_profile and isinstance(merged_profile[k], dict):
+                            merged_profile[k].update(v)
+                        else:
+                            merged_profile[k] = v
+                    resolved_profile = merged_profile
+                except Exception as e:
+                    print(f"Warning: Could not load inheritance group '{group_name}' from {group_file}: {e}")
+            else:
+                print(f"Warning: Profile requested group '{group_name}', but {group_file} does not exist.")
+            
         # Attach the single-source-of-truth profile to the data context
         self.ctx.device_info.extra['device_profile'] = resolved_profile
         data['device_profile_id'] = resolved_profile.get("model", "unknown")
