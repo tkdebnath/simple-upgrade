@@ -50,7 +50,16 @@ class CiscoCheckTask(BaseTask):
         skipped  = []
         command_map = {}
 
-        for cmd in SHOW_COMMANDS:
+        # ── Dynamic Profile Loading ───────────────────────────────────────
+        profile = self.ctx.device_info.extra.get('device_profile', {})
+        prof_commands = profile.get('commands', {})
+
+        if prof_commands:
+            commands_to_run = list(prof_commands.values())
+        else:
+            commands_to_run = SHOW_COMMANDS
+
+        for cmd in commands_to_run:
             key = cmd.split("|")[0].strip().replace(" ", "_")
             command_map[key] = cmd
             try:
@@ -68,7 +77,7 @@ class CiscoCheckTask(BaseTask):
         # Save each output to disk
         self._save_to_disk(stage, captured, command_map)
 
-        msg = f"{stage.replace('_', ' ').title()} — {len(captured)} commands captured"
+        msg = f"{stage.replace('_', ' ').title()} - {len(captured)} commands captured"
         if skipped:
             msg += f", {len(skipped)} skipped"
 
