@@ -102,6 +102,13 @@ class UpgradePackage:
                 f"Valid platforms: {valid_platforms}"
             )
 
+        # 3. LINT GLOBAL DEVICE PROFILES
+        import os
+        from .config_validator import ProfileValidator
+        profiles_dir = os.path.join(os.path.dirname(__file__), "device_profiles")
+        validator = ProfileValidator(profiles_dir)
+        validator.validate_all()
+
     # ── Orchestration ─────────────────────────────────────────────────
 
     def run_stage(self, stage: str) -> StageResult:
