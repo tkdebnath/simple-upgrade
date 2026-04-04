@@ -117,6 +117,10 @@ class UpgradePackage:
         validator = ProfileValidator(profiles_dir)
         validator.validate_all()
 
+        # 4. INJECT GLOBAL CONSOLE RECORDER
+        from .logger import enable_global_logging
+        enable_global_logging(host)
+
     # ── Orchestration ─────────────────────────────────────────────────
 
     def run_stage(self, stage: str) -> StageResult:
@@ -159,9 +163,9 @@ class UpgradePackage:
         port = self.device_kwargs.get("port", 22)
         
         # Pull timers from device_kwargs root or use standard defaults
-        wait_delay  = self.device_kwargs.get("post_wait_delay", 30)
-        max_retries = self.device_kwargs.get("post_wait_retries", 60)
-        convergence = self.device_kwargs.get("post_wait_convergence", 60)
+        wait_delay  = self.device_kwargs.get("post_wait_delay", 600)
+        max_retries = self.device_kwargs.get("post_wait_retries", 120)
+        convergence = self.device_kwargs.get("post_wait_convergence", 30)
         
         # 1. Immediate severance: Safely close existing SSH sockets
         try:
