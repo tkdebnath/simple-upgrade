@@ -47,10 +47,10 @@ class CiscoDistributeTask(BaseTask):
         img    = self.ctx.golden_image.image_name
         fs     = self.ctx.file_server
         base   = fs.base_path.strip("/")
-        path   = f"{base}/{img}" if base else img
         port   = f":{fs.port}" if fs.port else ""
         profile = self.ctx.device_info.extra.get('device_profile', {})
         upgrade_cmds = profile.get("upgrade_commands", {})
+        dest    = profile.get("default_image_location", "flash:/")
 
         # 1. Resolve distribution string structurally from JSON architecture
         cmd_template = upgrade_cmds.get("copy_image", "copy {protocol}://{server}/{path}/{image} flash:/{image}")
