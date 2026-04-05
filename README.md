@@ -225,7 +225,7 @@ After execution, the following files are generated in `output/<hostname>/`:
 
 | Profile | Models Matched | Group |
 |---------|---------------|-------|
-| `catalyst_9300x` | `C9300X.*`, `C9KV-UADP-8P` | `install_mode` |
+| `catalyst_9300` | `C9300.*`, `C9300X.*`, `C9300L.*`, `C9KV-UADP-8P` | `install_mode` |
 | `catalyst_VIOS` | `IOSv` | `lab_vios` |
 
 > Additional profiles can be added by creating a new JSON file in `device_profiles/cisco/` with appropriate `models` regex patterns and an optional `group` reference.

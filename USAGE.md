@@ -220,7 +220,7 @@ Generates per-command diffs between pre and post checks. Bundles everything into
 
 1. `sync` runs `show version` → extracts hardware **model** and **platform**
 2. The engine scans all JSON files under `device_profiles/cisco/`
-3. Each profile's `models` list contains regex patterns (e.g. `"C9300X.*"`)
+3. Each profile's `models` list contains regex patterns (e.g. `"C9300-.*"`)
 4. The first profile where a model pattern matches the discovered hardware is selected
 5. If the profile has a `group` key, the group template is loaded and merged (profile overrides group)
 6. The merged profile is stored in `ctx.device_info.extra['device_profile']`
@@ -230,14 +230,14 @@ Generates per-command diffs between pre and post checks. Bundles everything into
 ```json
 {
   "manufacturer": "Cisco",
-  "model": "catalyst_9300x",
-  "models": ["C9300X.*", "C9KV-UADP-8P"],
+  "model": "catalyst_9300",
+  "models": ["C9300-.*", "C9300X-.*", "C9300L-.*", "C9KV-UADP-8P"],
   "group": "install_mode",
   "mode": "switch",
-  "series": "Catalyst 9300X",
+  "series": "Catalyst 9300",
   "platform": ["IOS-XE", "cisco_xe"],
   "device_type": "cisco_iosxe",
-  "description": "Cisco Catalyst 9300X Series",
+  "description": "Cisco Catalyst 9300 Series",
   "flash_size": "16GB"
 }
 ```

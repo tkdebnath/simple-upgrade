@@ -1,18 +1,21 @@
 {
   "manufacturer": "Cisco",
-  "model": "catalyst_9300x",
+  "model": "catalyst_9300",
   "models": [
-    "C9300X.*",
+    "C9300X-.*",
+    "C9300-.*",
+    "C9300L-.*",
+    "C9300LM-.*",
     "C9KV-UADP-8P"
   ],
   "group": "install_mode",
   "mode": "switch",
-  "series": "Catalyst 9300X",
+  "series": "Catalyst 9300",
   "platform": [
     "IOS-XE"
   ],
   "device_type": "cisco_xe",
-  "description": "Cisco Catalyst 9300X Series Switches",
+  "description": "Cisco Catalyst 9300 Series Switches",
   "commands": {
     "show_interfaces_status": "show interfaces status",
     "show_mac_address_table": "show mac address-table",
@@ -41,7 +44,7 @@
     "reload_device": "reload"
   },
   "upgrade_notes": [
-    "C9300X uses specific virtual stack topologies."
+    "C9300 series uses specific virtual stack topologies."
   ],
   "flash_size": "4GB"
 }
