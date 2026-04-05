@@ -59,11 +59,9 @@ class CiscoReadinessTask(BaseTask):
         has_space = flash_free_space(parsed_fs, image_size=img_size)
 
         data = {}
-        # valid response
+        # Guard: helper must return a dict
         if not isinstance(has_space, dict):
-            data['flash_free_space'] = has_space['flash_free_space']
-            data['required_free_space'] = has_space['required_free_space']
-            return self._fail(f"Invalid response from flash_free_space", data=data)
+            return self._fail(f"Invalid response from flash_free_space: {has_space}", data=data)
         
         if has_space['status'] == False:
             data['flash_free_space'] = has_space['flash_free_space']

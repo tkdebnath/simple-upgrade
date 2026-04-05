@@ -6,21 +6,21 @@ def test_mock_upgrade():
         host="10.10.10.1",
         username="admin",
         password="password",
-        manufacturer="cisco"
+        platform="cisco_iosxe",
+        manufacturer="cisco",
+        connection_mode="mock",
+        golden_image={
+            "version": "17.9.4",
+            "image_name": "cat9k_iosxe.17.09.04.SPA.bin",
+            "image_size": 1000000000,
+            "md5": "abc123"
+        },
+        file_server={
+            "ip": "10.10.10.5",
+            "protocol": "http",
+            "base_path": "/images"
+        }
     )
-    
-    # Setup context
-    orchestrator.golden_image = GoldenImage(
-        version="17.9.4",
-        image_name="cat9k_iosxe.17.09.04.SPA.bin"
-    )
-    orchestrator.file_server = FileServer(
-        ip="10.10.10.5",
-        protocol="http"
-    )
-    
-    # Set connection mode to mock
-    orchestrator.connection_mode = "mock"
     
     # Run upgrade stages
     print("\n" + "="*60)

@@ -33,7 +33,7 @@ class TeeStreamLogger:
         
         # 2. Reformat and save to the text log
         if message.strip():
-            # If the engine (e.__. Unicon) already stamped it, save as-is
+            # If the engine (e.g. Unicon) already stamped it, save as-is
             if self.has_timestamp.match(message.strip()):
                 self.log_file.write(message)
             else:
