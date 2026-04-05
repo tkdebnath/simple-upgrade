@@ -232,7 +232,7 @@ After execution, the following files are generated in `output/<hostname>/`:
 
 ## Requirements
 
-- Python 3.10+
+- Python 3.12+
 - `scrapli` — SSH connections (readiness, checks, verification)
 - `genie` / `pyats` / `unicon` — File distribution and activation (interactive dialogs)
 - `netutils` — Version comparison utilities
