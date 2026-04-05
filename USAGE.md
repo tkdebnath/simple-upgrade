@@ -1,431 +1,421 @@
-# simple-upgrade Usage Guide
+# simple-upgrade — Usage Guide
 
 ## Table of Contents
 
-- [Quick Start](#quick-start)
+- [Full Constructor Reference](#full-constructor-reference)
 - [Connection Modes](#connection-modes)
-- [UpgradePackage Reference](#upgradepackage-reference)
-- [Stage Reference](#stage-reference)
-- [Image and File Server Config](#image-and-file-server-config)
-- [ConnectionManager](#connectionmanager)
-- [SyncManager](#syncmanager)
-- [Device Profiles and Model Matching](#device-profiles-and-model-matching)
-- [Checks and Report](#checks-and-report)
+- [Stage-by-Stage Execution](#stage-by-stage-execution)
+- [Device Profile System](#device-profile-system)
+- [File Transfer Protocols](#file-transfer-protocols)
+- [Post-Activation Wait Tuning](#post-activation-wait-tuning)
+- [Logging and Output](#logging-and-output)
+- [Diagnostic Reports](#diagnostic-reports)
+- [Advanced: ConnectionManager](#advanced-connectionmanager)
+- [Troubleshooting](#troubleshooting)
 
 ---
 
-## Quick Start
+## Full Constructor Reference
 
 ```python
 from simple_upgrade import UpgradePackage
 
-upgrade = UpgradePackage(
-    host="192.168.1.1",
-    username="admin",
-    password="password123",
-    device_type="cisco_iosxe",
+pkg = UpgradePackage(
+    # ═══════════════════════════════════════════
+    #  REQUIRED PARAMETERS
+    # ═══════════════════════════════════════════
+    host="172.20.20.11",                        # Device IP or hostname
+    username="admin",                           # SSH username
+    password="admin",                           # SSH password
+    platform="cisco_iosxe",                     # Software platform
+
+    # ═══════════════════════════════════════════
+    #  OPTIONAL — Connection & Authentication
+    # ═══════════════════════════════════════════
+    port=22,                                    # SSH port (default: 22)
+    manufacturer="cisco",                       # Manufacturer key (default: "cisco")
+    connection_mode="normal",                   # "normal" | "mock" | "dry_run"
+    enable_password="admin",                    # Enable / privilege-exec secret
+
+    # ═══════════════════════════════════════════
+    #  OPTIONAL — Routing & Connectivity
+    # ═══════════════════════════════════════════
+    source_interface="GigabitEthernet0/0",      # Source interface for file transfer
+    source_vrf="Mgmt-vrf",                      # VRF context for file transfer routing
+
+    # ═══════════════════════════════════════════
+    #  OPTIONAL — Post-Activation Wait Timers
+    # ═══════════════════════════════════════════
+    post_wait_delay=600,                        # Seconds before SSH polling starts (default: 600)
+    post_wait_retries=120,                      # Max SSH probe attempts × 15s each (default: 120)
+    post_wait_convergence=30,                   # Routing/STP convergence wait (default: 30)
+
+    # ═══════════════════════════════════════════
+    #  GOLDEN IMAGE (target firmware)
+    # ═══════════════════════════════════════════
     golden_image={
-        "version": "17.9.4",
-        "image_name": "cat9k_iosxe.17.09.04.SPA.bin"   # no flash: prefix
+        "version": "17.13.1",                   # Target software version string
+        "image_name": "cat9k_iosxe.17.13.01.SPA.bin",  # Filename only (no flash: prefix)
+        "image_size": 1234567890,               # Expected file size in bytes
+        "md5": "abc123def456...",                # MD5 checksum for verification
+        # "sha256": "...",                       # Optional SHA-256 checksum
     },
+
+    # ═══════════════════════════════════════════
+    #  FILE SERVER (image source)
+    # ═══════════════════════════════════════════
     file_server={
-        "ip": "10.0.0.10",
-        "protocol": "http",
-        "base_path": "/images"
+        "protocol": "http",                     # http | https | tftp | ftp | scp
+        "ip": "192.168.29.73",                  # Server IP address
+        "port": 5000,                           # Server port (optional — omit for default)
+        "base_path": "/Cisco/C9XXX/",           # URL path on the server
+        # "username": "ftpuser",                # FTP/SCP username (optional)
+        # "password": "ftppass",                # FTP/SCP password (optional)
+        # "source_interface": "Gi0/0",          # Can also be set here instead of top-level
+        # "source_vrf": "Mgmt-vrf",             # Can also be set here instead of top-level
     }
 )
-
-(upgrade
-    .sync()
-    .readiness()
-    .pre_check()
-    .distribute()
-    .activate()
-    .wait()
-    .ping()
-    .post_check()
-    .verification()
-)
-
-if upgrade.success:
-    print("Upgrade successful!")
-else:
-    print(f"Failed at: {upgrade.failed_stage}")
-    print(f"Errors: {upgrade.errors}")
 ```
+
+### Parameter Precedence
+
+`source_interface` and `source_vrf` can be set in **two places**:
+
+1. **Top-level** (recommended): `UpgradePackage(source_interface="Gi0/0")`
+2. **Inside `file_server`**: `file_server={"source_interface": "Gi0/0"}`
+
+Top-level values are transparently proxied into `file_server` at initialization. If both are set, the `file_server` value takes precedence to allow explicit overrides.
 
 ---
 
 ## Connection Modes
 
-### Normal Mode
-
-Full upgrade with real device connections.
+### Normal Mode (Production Upgrade)
 
 ```python
-upgrade = UpgradePackage(
-    host="192.168.1.1",
+pkg = UpgradePackage(
+    host="172.20.20.11",
     username="admin",
-    password="password",
-    device_type="cisco_iosxe",
-    connection_mode="normal",   # default
-    golden_image={"version": "17.9.4", "image_name": "cat9k_iosxe.17.09.04.SPA.bin"},
-    file_server={"ip": "10.0.0.10", "protocol": "http", "base_path": "/images"}
+    password="admin",
+    platform="cisco_iosxe",
+    connection_mode="normal",
+    golden_image={...},
+    file_server={...}
 )
-
-upgrade.sync().readiness().distribute().activate().wait().ping().post_check().verification()
 ```
 
-### Mock Mode
-
-No real connections. All stages simulated. Returns the exact CLI commands that would run.
+### Mock Mode (No Device Connection)
 
 ```python
-upgrade = UpgradePackage(
+pkg = UpgradePackage(
     host="192.168.1.1",
     username="admin",
-    password="password",
-    device_type="cisco_iosxe",
+    password="admin",
+    platform="cisco_iosxe",
     connection_mode="mock",
-    golden_image={"version": "17.9.4", "image_name": "cat9k_iosxe.17.09.04.SPA.bin"},
-    file_server={"ip": "10.0.0.10", "protocol": "http", "base_path": "/images"}
+    golden_image={"version": "17.13.1", "image_name": "cat9k.bin", "image_size": 1, "md5": "x"},
+    file_server={"ip": "10.0.0.10", "base_path": "/images"}
 )
 
-upgrade.sync().distribute().activate()
-
-# Result shows what would run
-print(upgrade.stage_results['distribute']['message'])
-# [MOCK] Would execute: copy http://10.0.0.10/images/cat9k_iosxe.17.09.04.SPA.bin flash:cat9k_iosxe.17.09.04.SPA.bin
-
-print(upgrade.stage_results['activate']['message'])
-# [MOCK] Would execute: install add file flash:cat9k_iosxe.17.09.04.SPA.bin activate commit
+result = pkg.run_stage("distribute")
+print(result.message)
+# [MOCK] Would execute: copy http://10.0.0.10/images/cat9k.bin flash:/cat9k.bin
 ```
 
-> **Note:** In mock mode, `device.model` is populated by `MockSyncManager`. Hardware model comes from `device.model` set after `sync()` — it is **never** inferred from `device_type`.
-
-### Dry-Run Mode
-
-Connects to a real device via SSH. Executes show commands for real (readiness, pre/post checks). Mocks all upgrade commands (distribute, activate).
+### Dry-Run Mode (Real Connection, No Changes)
 
 ```python
-upgrade = UpgradePackage(
-    host="192.168.1.1",
+pkg = UpgradePackage(
+    host="172.20.20.11",
     username="admin",
-    password="password",
-    device_type="cisco_iosxe",
+    password="admin",
+    platform="cisco_iosxe",
     connection_mode="dry_run",
-    golden_image={"version": "17.9.4", "image_name": "cat9k_iosxe.17.09.04.SPA.bin"},
-    file_server={"ip": "10.0.0.10", "protocol": "http", "base_path": "/images"}
+    golden_image={...},
+    file_server={...}
 )
 
-upgrade.sync().readiness().pre_check().distribute().activate()
-
-print(upgrade.stage_results['distribute']['message'])
-# [DRY-RUN] Would execute: copy http://10.0.0.10/images/cat9k_iosxe.17.09.04.SPA.bin flash:cat9k_iosxe.17.09.04.SPA.bin
+# sync, readiness, pre_check run for real
+# distribute, activate are simulated
 ```
 
 | Feature | `normal` | `mock` | `dry_run` |
 |---------|----------|--------|-----------|
-| Real SSH | Yes | No | Yes |
+| Real SSH | ✓ | ✗ | ✓ |
 | Show commands | Real | Simulated | Real |
-| Upgrade commands | Real | Simulated | Simulated |
-| Unicon connection | Yes | No | No |
+| Copy/Install | Real | Simulated | Simulated |
+| Post-reload wait | Real TCP sweep | Instant | Instant |
 
 ---
 
-## UpgradePackage Reference
+## Stage-by-Stage Execution
 
-### Constructor Parameters
-
-```python
-UpgradePackage(
-    host: str,
-    username: str,
-    password: str,
-    device_type: str,                  # cisco_iosxe, cisco_xe, cisco_ios
-    golden_image: dict,
-    file_server: dict,
-    port: int = 22,
-    connection_mode: str = "normal",   # normal | mock | dry_run
-    **device_kwargs                    # passed to ConnectionManager
-)
-```
-
-### Chaining Stages
-
-All stage methods return `self`, enabling method chaining:
+### Interactive Mode
 
 ```python
-(upgrade
-    .sync()          # → populates device_info (model, version, hostname, serial, ...)
-    .readiness()     # → checks flash space, platform, version
-    .pre_check()     # → saves pre-upgrade snapshots to output/
-    .distribute()    # → copies image to flash via HTTP/HTTPS (unicon)
-    .activate()      # → install add/activate/commit + reload (unicon)
-    .wait()          # → sleep + ping loop (10 min default)
-    .ping()          # → final reachability check
-    .post_check()    # → saves post-upgrade snapshots to output/
-    .verification()  # → confirms version matches target
-)
+import json
+
+for stage in pkg.STAGES:
+    if pkg.ctx.failed_stage and stage != 'diff':
+        print(f"[-] Skipping '{stage}' (halted at '{pkg.ctx.failed_stage}')")
+        continue
+
+    action = input(f"Run '{stage}'? [Enter/q]: ").strip().lower()
+    if action == 'q':
+        break
+
+    result = pkg.run_stage(stage)
+    print(json.dumps(result.model_dump(), indent=2))
 ```
 
-### Result Inspection
+### Automatic Mode
 
 ```python
-# Overall
-upgrade.success           # bool
-upgrade.failed_stage      # str | None
-upgrade.errors            # list[str]
-upgrade.device_info       # dict — populated after sync()
-
-# Per-stage
-upgrade.stage_results['sync']
-upgrade.stage_results['readiness']
-upgrade.stage_results['distribute']
-upgrade.stage_results['activate']
-# Each has: {'success': bool, 'message': str, ...}
+results = pkg.execute()  # Runs all stages sequentially, stops on failure
 ```
+
+### Stage Details
+
+#### 1. `sync`
+Connects via Scrapli, runs `show version`, regex-matches hardware model to a JSON device profile. The resolved profile is stored in `ctx.device_info.extra['device_profile']` and drives all subsequent stages.
+
+#### 2. `readiness`
+Parses `show file systems` via Genie to validate flash space (requires 2.5× image size free). Compares current version against golden image — blocks if already running target or a higher version.
+
+#### 3. `pre_check`
+Iterates over the `commands` dictionary from the resolved JSON profile. Each command output is saved to `output/<hostname>/precheck/<command_key>.txt`.
+
+#### 4. `distribute`
+Resolves `copy_image` template from JSON profile, injects runtime values (`{protocol}`, `{server}`, `{path}`, `{image}`), and executes via Unicon with dialog handling. Applies `source_interface` configuration before transfer. Runs `install remove inactive` for flash cleanup.
+
+**Smart-skip logic:** If the file already exists on flash with matching size and MD5, the download is skipped entirely.
+
+#### 5. `activate`
+Resolves `install_add` template from JSON profile. If `boot_commands` are defined in the profile, they are applied and saved to NVRAM before activation. Handles all interactive reload prompts.
+
+#### 6. `post_activation_wait`
+Disconnects existing SSH sessions, then polls TCP port 22 every 15 seconds until the device responds. Waits for routing convergence after SSH restores.
+
+**Tunable via kwargs:**
+```python
+post_wait_delay=30,        # Wait before polling starts
+post_wait_retries=60,      # Max polling attempts (× 15s = 15 min max)
+post_wait_convergence=60,  # STP/routing settle time
+```
+
+#### 7. `post_check`
+Identical to `pre_check` but saves to `output/<hostname>/postcheck/`.
+
+#### 8. `verification`
+Compares running version against `golden_image.version` using strict semantic comparison.
+
+#### 9. `diff`
+Generates per-command diffs between pre and post checks. Bundles everything into `output/<hostname>_upgrade_report.zip`.
 
 ---
 
-## Stage Reference
+## Device Profile System
 
-### `sync()`
+### How Profile Resolution Works
 
-Fetches device information. In mock mode, uses `MockSyncManager`. In dry-run/normal mode, connects via scrapli and runs `show version`, `show inventory`, `show run | include tacacs`.
+1. `sync` runs `show version` → extracts hardware **model** and **platform**
+2. The engine scans all JSON files under `device_profiles/cisco/`
+3. Each profile's `models` list contains regex patterns (e.g. `"C9300X.*"`)
+4. The first profile where a model pattern matches the discovered hardware is selected
+5. If the profile has a `group` key, the group template is loaded and merged (profile overrides group)
+6. The merged profile is stored in `ctx.device_info.extra['device_profile']`
 
-```python
-upgrade.sync()
-print(upgrade.device_info['model'])      # e.g. 'C9300' (hardware model from show version)
-print(upgrade.device_info['version'])    # e.g. '17.9.3'
-print(upgrade.device_info['hostname'])   # e.g. 'hkd-swi-cat9k-01'
-```
+### Creating a New Device Profile
 
-### `distribute()`
-
-Downloads firmware from file server to device flash using unicon. Uses `connection_manager.get_connection('unicon')`.
-
-**Pre-download behaviour:**
-- If the file already exists on flash with correct size and MD5 — skips download
-- Pushes `ip http client source-interface <interface>` before download if source interface is set
-
-**Copy command format:**
-```
-copy http://<server_ip>/<base_path>/<image_name> flash:<image_name>
-```
-
-**Verification (3-tier):**
-1. Output contains byte count
-2. File size matches golden_image config
-3. MD5 checksum matches
-
-### `activate()`
-
-Runs the full Catalyst 9K install workflow via unicon:
-
-```
-install add file flash:<image> activate commit
-```
-
-- Handles interactive prompts (`Do you want to proceed?`, `Reload this box?`)
-- 3600s timeout on install command
-- Checks output for `Error` / `Failed` / `%` prefix
-
-### `wait()`
-
-Sleeps for a configurable time (default 600s) then pings until device is reachable. Maximum wait 10 minutes.
-
-### `verification()`
-
-Connects via scrapli and runs `show version` to confirm running version matches `golden_image['version']`.
-
----
-
-## Image and File Server Config
-
-### `golden_image`
-
-```python
-golden_image = {
-    "version": "17.9.4",                           # target version string
-    "image_name": "cat9k_iosxe.17.09.04.SPA.bin"  # filename only — NO flash: prefix
+```json
+{
+  "manufacturer": "Cisco",
+  "model": "catalyst_9300x",
+  "models": ["C9300X.*", "C9KV-UADP-8P"],
+  "group": "install_mode",
+  "mode": "switch",
+  "series": "Catalyst 9300X",
+  "platform": ["IOS-XE", "cisco_xe"],
+  "device_type": "cisco_iosxe",
+  "description": "Cisco Catalyst 9300X Series",
+  "flash_size": "16GB"
 }
 ```
 
-> Do **not** include `flash:/` or `flash:` in `image_name`. The library strips any such prefix automatically, but it is cleaner to omit it.
+### Group Template Example (`groups/install_mode.json`)
 
-### `file_server`
-
-```python
-file_server = {
-    "ip": "10.0.0.10",
-    "protocol": "http",        # http or https only
-    "base_path": "/images",    # URL path on the server
-    "source_interface": "GigabitEthernet0/0"   # optional
+```json
+{
+  "commands": {
+    "show_version": "show version",
+    "show_inventory": "show inventory",
+    "show_running_config": "show running-config",
+    "show_ip_route": "show ip route",
+    "show_boot": "show boot"
+  },
+  "upgrade_commands": {
+    "copy_image": "copy {protocol}://{server}/{path}/{image} flash:/{image}",
+    "verify_image": "verify /md5 flash:/{image} {md5}",
+    "install_add": "install add file flash:/{image} activate commit",
+    "flash_cleanup": "install remove inactive"
+  },
+  "boot_commands": [
+    "no boot system",
+    "boot system flash:packages.conf",
+    "no boot manual",
+    "no system ignore startupconfig switch all"
+  ],
+  "default_image_location": "flash:/"
 }
 ```
 
-> Only `http` and `https` are supported. TFTP, SCP, and FTP are intentionally disabled.
+### Inheritance Rules
+
+- Device profile fields **override** group fields with the same key
+- If a device profile has no `commands` block, it inherits entirely from the group
+- Remove the `"group"` key to create a standalone profile with no inheritance
 
 ---
 
-## ConnectionManager
+## File Transfer Protocols
 
-Provides unified scrapli / unicon connections.
+The `source_interface` parameter triggers protocol-specific device configuration before file transfer:
+
+| Protocol | Device Configuration Applied |
+|----------|------------------------------|
+| `http` / `https` | `ip http client source-interface <intf>` |
+| `tftp` | `ip tftp source-interface <intf>` |
+| `ftp` | `ip ftp source-interface <intf>` + username/password |
+| `scp` | `ip scp server enable` + `ip ssh source-interface <intf>` |
+
+The `source_vrf` parameter prepends `vrf <name>` to the copy command for TFTP/FTP/SCP protocols. HTTP/HTTPS do not support VRF in the copy command syntax — routing is handled via the source interface's VRF membership.
+
+---
+
+## Post-Activation Wait Tuning
+
+The `post_activation_wait` stage uses TCP socket polling for intelligent reload detection:
+
+```
+Phase 1: Disconnect SSH sessions
+Phase 2: Wait `post_wait_delay` seconds for device to go offline
+Phase 3: Probe TCP port 22 every 15 seconds (max `post_wait_retries` attempts)
+Phase 4: Wait `post_wait_convergence` seconds for routing convergence
+```
+
+### Scenarios
+
+| Environment | `post_wait_delay` | `post_wait_retries` | `post_wait_convergence` |
+|-------------|-------------------|---------------------|-------------------------|
+| Lab (vIOS) | `10` | `20` | `10` |
+| Standard C9300 | `60` | `60` | `60` |
+| Large Stack | `120` | `120` | `120` |
+| Production (conservative) | `600` | `120` | `30` |
+
+---
+
+## Logging and Output
+
+### Automatic Dual Logging
+
+When `UpgradePackage` is initialized, the framework automatically enables dual logging:
+
+1. **`output/<host>/execution_log.json`** — Structured JSON with full pipeline results, device info, and all stage data including executed commands
+2. **`output/<host>/execution_cli.log`** — Timestamped text log capturing all terminal output including Unicon/Scrapli CLI dialogues
+
+The CLI log transparently intercepts `sys.stdout` and the Python `logging` module. Lines that already contain timestamps (e.g. from Unicon) are preserved as-is; plain text output receives automatic timestamps.
+
+### Example CLI Log Output
+
+```
+================================================================================
+=== DEPLOYMENT STARTED: 2026-04-04 22:01:15 ===
+================================================================================
+
+2026-04-04 22:01:16,234: %UNICON-INFO: +++ 172.20.20.11: executing command 'show version' +++
+show version
+Cisco IOS XE Software, Version 17.12.01prd9
+...
+2026-04-04 22:01:20,567: [framework] [distribute] Starting native transfer sequence: copy http://...
+```
+
+---
+
+## Diagnostic Reports
+
+After completing the pipeline, run the `diff` stage to generate a diagnostic bundle:
+
+```python
+result = pkg.run_stage("diff")
+print(result.data)
+# {'diff_count': 24, 'zip_path': 'output/hkd-swi-cat9k-01_upgrade_report.zip'}
+```
+
+The ZIP archive contains:
+- All pre-check command outputs
+- All post-check command outputs
+- Per-command text diffs
+- `execution_log.json`
+
+---
+
+## Advanced: ConnectionManager
+
+For low-level access to the SSH connections:
 
 ```python
 from simple_upgrade import ConnectionManager
 
 cm = ConnectionManager(
-    host="192.168.1.1",
+    host="172.20.20.11",
     username="admin",
-    password="password",
-    device_type="cisco_iosxe",
-    enable_password="enable123",
-    enable_mode=True,
-    connection_timeout=30,
-    auth_strict_key=False
+    password="admin",
+    platform="cisco_iosxe",
+    enable_password="admin",
+    connection_mode="normal"
 )
 
-# scrapli — for show commands, checks, verification
+# Scrapli — for show commands and structured parsing
 sc = cm.get_connection(channel='scrapli')
 output = sc.send_command("show version")
-print(output.result)
+parsed = output.genie_parse_output()
 
-# unicon — for interactive commands (copy, install)
+# Unicon — for interactive commands (copy, install, reload)
 uc = cm.get_connection(channel='unicon')
 uc.configure(["no boot system", "boot system flash:packages.conf"])
 
 cm.disconnect()
 ```
 
-### Parameters
-
-| Parameter | Type | Default | Description |
-|-----------|------|---------|-------------|
-| `host` | str | — | Device IP or hostname |
-| `username` | str | — | SSH username |
-| `password` | str | — | SSH password |
-| `device_type` | str | — | Platform — `cisco_iosxe`, `cisco_xe`, `cisco_ios` |
-| `port` | int | 22 | SSH port |
-| `timeout` | int | 30 | Command timeout (seconds) |
-| `connection_timeout` | int | 30 | Connection timeout (seconds) |
-| `enable_mode` | bool | False | Enter enable mode |
-| `enable_password` | str | None | Enable password |
-| `auth_strict_key` | bool | False | Strict SSH host-key checking |
-
-> **Note:** Use `enable_password`, not `secret`. Passing `secret` has no effect.
+| Channel | Library | Used For |
+|---------|---------|----------|
+| `scrapli` | scrapli + genie | Show commands, structured parsing, readiness, checks |
+| `unicon` | pyATS/unicon | Interactive prompts (copy dialogs, install, reload) |
 
 ---
 
-## SyncManager
+## Troubleshooting
+
+### Common Issues
+
+| Error | Cause | Fix |
+|-------|-------|-----|
+| `ProfileValidationError` | Overlapping model patterns in JSON profiles | Ensure each model regex is unique across all profile files |
+| `invalid version number` | Experimental/non-standard version string | Expected with vIOS lab devices — verification stage uses strict semver parsing |
+| `name 'dest' is not defined` | Profile missing `default_image_location` | Add `"default_image_location": "flash:/"` to the profile or group JSON |
+| Double-slash in copy URL | Empty `base_path` (e.g. `"/"`) | Fixed in framework — slashes are dynamically collapsed |
+| HTTP transfer fails | File server unreachable from device | Set `source_interface` to the management interface in the device's VRF |
+| `_clean_inactive_files` error | Missing `flash_cleanup` in profile | Add `"flash_cleanup": "install remove inactive"` to `upgrade_commands` |
+
+### Validating JSON Profiles
+
+The `ProfileValidator` runs automatically at startup. To test manually:
 
 ```python
-from simple_upgrade import ConnectionManager, SyncManager
+from simple_upgrade.config_validator import ProfileValidator
 
-cm = ConnectionManager(host="192.168.1.1", username="admin",
-                       password="password", device_type="cisco_iosxe")
-conn = cm.get_connection(channel='scrapli')
-conn.open()
-
-platform = cm.get_platform(channel='scrapli')
-sync = SyncManager(connection_manager=cm, platform=platform)
-info = sync.fetch_info()
-```
-
-### Using the standalone function
-
-```python
-from simple_upgrade import sync_device
-
-info = sync_device(
-    host="192.168.1.1",
-    username="admin",
-    password="password",
-    platform="cisco_iosxe"
-)
-```
-
-### Returned Fields
-
-| Field | Description |
-|-------|-------------|
-| `manufacturer` | `Cisco` |
-| `model` | Hardware model (e.g. `C9300`) — from `show version` |
-| `version` | Software version (e.g. `17.9.4`) |
-| `hostname` | Device hostname |
-| `serial_number` | Chassis serial |
-| `uptime` | Uptime string |
-| `boot_method` | Boot image path |
-| `config_register` | Config register |
-| `tacacs_source_interface` | TACACS+ source interface, if configured |
-| `flash_size` | Flash storage |
-| `memory_size` | DRAM |
-
----
-
-## Device Profiles and Model Matching
-
-Device profiles live in `device_profiles/cisco/`. Model matching is **case-insensitive**.
-
-```python
-from simple_upgrade import match_model_to_profile
-
-profile = match_model_to_profile('C9300', 'cisco')   # matches
-profile = match_model_to_profile('c9300', 'cisco')   # also matches
-profile = match_model_to_profile('C9300L', 'cisco')  # matches via models list
-```
-
-### Cisco Profiles
-
-| Profile file | Primary model | Also matches |
-|---|---|---|
-| `c9300.json` | `c9300` | C9300, C9300L, C9300X, C9300UX |
-| `c9400.json` | `C9400` | — |
-| `c9500.json` | `c9500` | — |
-| `catalyst_9200.json` | `catalyst_9200` | — |
-| `catalyst_9200xl.json` | `catalyst_9200xl` | — |
-| `catalyst_9300x.json` | `catalyst_9300x` | — |
-| `catalyst_3650.json` | `catalyst_3650` | — |
-| `catalyst_3850.json` | `catalyst_3850` | — |
-
-> **Platform vs Model:** `device_type` is the **software platform** (e.g. `cisco_iosxe`). Hardware model (e.g. `C9300`) is a separate concept populated from `show version` during `sync()`. Never infer hardware model from `device_type`.
-
----
-
-## Checks and Report
-
-### Pre/Post Checks
-
-```python
-from simple_upgrade import Checks
-
-checks = Checks(
-    host="192.168.1.1",
-    username="admin",
-    password="password",
-    device_type="cisco_iosxe",
-    secret="enable123"   # maps to enable_password
-)
-
-results = checks.run_all()
-checks.save_to_file("output/pre_check")
-```
-
-### Report Generator
-
-Compare pre and post check results:
-
-```python
-from simple_upgrade import ReportGenerator
-
-generator = ReportGenerator(
-    pre_checks=pre_results,
-    post_checks=post_results
-)
-
-report = generator.generate_report()
-generator.save_report(report, "upgrade_report.txt")
+validator = ProfileValidator("src/simple_upgrade/device_profiles")
+validator.validate_all()  # Raises ProfileValidationError on issues
 ```
 
 ---
@@ -435,9 +425,12 @@ generator.save_report(report, "upgrade_report.txt")
 | Concept | Value |
 |---------|-------|
 | Primary API | `UpgradePackage` |
-| Distribute/Activate library | unicon (pyATS/genie) |
-| Readiness/Checks library | scrapli |
-| Supported OS | Cisco IOS-XE only (production) |
-| Transfer protocols | HTTP and HTTPS only |
-| Model matching | Case-insensitive, via `device_profiles/cisco/*.json` |
-| Hardware model source | `show version` (not inferred from `device_type`) |
+| Distribution/Activation | Unicon (pyATS) |
+| Readiness/Checks | Scrapli |
+| Command definitions | JSON device profiles (not hardcoded) |
+| Supported OS | Cisco IOS-XE |
+| Transfer protocols | HTTP, HTTPS, TFTP, FTP, SCP |
+| Model matching | Regex-based, case-insensitive |
+| Hardware model source | `show version` (auto-detected during `sync`) |
+| Logging | Dual: JSON structured + CLI text |
+| Post-reload detection | TCP socket polling on SSH port 22 |
