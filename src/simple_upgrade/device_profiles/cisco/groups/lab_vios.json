@@ -26,18 +26,16 @@
     "show_file_systems": "show file systems"
   },
   "upgrade_commands": {
-    "check_free_space": "dir_all | include bytes total",
+    "check_free_space": "dir /all | include bytes total",
     "copy_image": "copy {protocol}://{server}/{path}/{image} flash:/{image}",
     "verify_image": "verify /md5 flash:/{image} {md5}",
-    "install_add": "install add file flash:/{image} activate commit",
-    "verify_install": "show install active",
-    "flash_cleanup": "install remove inactive"
+    "install_add": "# dummy command => install add file flash:/{image} activate commit",
+    "verify_install": "show install active"
   },
   "boot_commands": [
-    "no boot system",
-    "boot system flash:packages.conf",
-    "no boot manual",
-    "no system ignore startupconfig switch all"
+    "boot-start-marker",
+    "# dummy commands",
+    "boot-end-marker"
   ],
   "upgrade_notes": [
     "This device utilizes the standard install add/activate/commit workflow.",

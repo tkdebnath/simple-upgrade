@@ -9,24 +9,31 @@ from simple_upgrade import UpgradePackage
 def main():
     print("Initializing UpgradePackage with live network configuration...")
     pkg = UpgradePackage(
-        host="172.20.30.14",
+        host="172.20.20.11",
         username="admin",
         password="admin",
         enable_password="admin",
         platform="cisco_iosxe",
         manufacturer="cisco",
         connection_mode="normal",
+        source_interface="GigabitEthernet0/0",
+        source_vrf="Mgmt-vrf",
+        # activation stage
+        post_wait_delay=10,
+        post_wait_retries=60,
+        post_wait_convergence=30,
+        # golden image
         golden_image={
             "version": "17.13.1",
-            "image_name": "10MB.BIN",
-            "image_size": 19901641,
-            "md5": "3cd381dcdae793d89bd54a2aec7ac820",
+            "image_name": "test_file_30M.bin",
+            "image_size": 31457280,
+            "md5": "281ed1d5ae50e8419f9b978aab16de83",
         },
         file_server={
             "protocol": "http",
-            "ip": "192.168.5.47",
-            "port": 80,
-            "base_path": "/Cisco/C9XXX/"
+            "ip": "192.168.29.73",
+            "port": 5000,
+            "base_path": "/"
         }
     )
 

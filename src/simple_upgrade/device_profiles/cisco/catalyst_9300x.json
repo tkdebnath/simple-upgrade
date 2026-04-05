@@ -1,11 +1,16 @@
 {
   "manufacturer": "Cisco",
   "model": "catalyst_9300x",
-  "models": ["C9300X.*", "Catalyst 9300X"],
+  "models": [
+    "C9300X.*",
+    "C9KV-UADP-8P"
+  ],
   "group": "install_mode",
   "mode": "switch",
   "series": "Catalyst 9300X",
-  "platform": "cisco_iosxe",
+  "platform": [
+    "IOS-XE"
+  ],
   "device_type": "cisco_xe",
   "description": "Cisco Catalyst 9300X Series Switches",
   "commands": {

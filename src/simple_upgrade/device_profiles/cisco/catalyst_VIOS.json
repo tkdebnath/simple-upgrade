@@ -1,0 +1,35 @@
+{
+  "manufacturer": "Cisco",
+  "model": "catalyst_vios",
+  "models": [
+    "IOSv"
+  ],
+  "group": "lab_vios",
+  "mode": "switch",
+  "series": "Catalyst VIOS",
+  "platform": [
+    "IOS"
+  ],
+  "device_type": "cisco_ios",
+  "description": "Cisco Catalyst VIOS",
+  "commands": {},
+  "upgrade_commands": {
+    "install_commit": "install commit"
+  },
+  "verification_commands": {
+    "check_version": "show version | include Version",
+    "check_uptime": "show version | include uptime",
+    "check_model": "show version | include Processor",
+    "check_serial": "show inventory | include PID"
+  },
+  "config_commands": {
+    "enter_config": "configure terminal",
+    "exit_config": "end",
+    "save_config": "write memory",
+    "reload_device": "reload"
+  },
+  "upgrade_notes": [
+    "C9300X uses specific virtual stack topologies."
+  ],
+  "flash_size": "4GB"
+}

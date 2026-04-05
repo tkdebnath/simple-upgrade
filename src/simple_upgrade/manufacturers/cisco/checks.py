@@ -60,7 +60,7 @@ class CiscoCheckTask(BaseTask):
             commands_to_run = SHOW_COMMANDS
 
         for cmd in commands_to_run:
-            key = cmd.split("|")[0].strip().replace(" ", "_")
+            key = cmd.split("|")[0].strip().replace(" ", "_").replace("/", "_")
             command_map[key] = cmd
             try:
                 # configs can be large — allow extra time
