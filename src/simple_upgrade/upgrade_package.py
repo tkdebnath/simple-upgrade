@@ -46,8 +46,8 @@ class UpgradePackage:
         file_server: Optional[Dict[str, Any]] = None,
         connection_mode: str = "normal",
         enable_password: Optional[str] = None,   # enable / privilege-exec secret
-        source_interface: Optional[str] = None,  # Elevated connectivity property
-        source_vrf: Optional[str] = None,        # Elevated VRF context constraint
+        source_interface: Optional[str] = None,  # Interface to use for file transfers
+        source_vrf: Optional[str] = None,        # VRF to use for file transfers
         **kwargs
     ):
         self.host = host
@@ -67,7 +67,7 @@ class UpgradePackage:
         if not file_server:
             file_server = {"ip": "127.0.0.1", "base_path": "/"}
 
-        # Transparently proxy root parameters down into the file engine map
+        # Pass root variables into file server object
         if source_interface and "source_interface" not in file_server:
             file_server["source_interface"] = source_interface
         if source_vrf and "source_vrf" not in file_server:

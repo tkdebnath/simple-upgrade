@@ -60,10 +60,10 @@ class CiscoDistributeTask(BaseTask):
         upgrade_cmds = profile.get("upgrade_commands", {})
         dest    = profile.get("default_image_location", "flash:/")
 
-        # 1. Resolve distribution string structurally from JSON architecture
+        # 1. Build distribution command from JSON profile template
         cmd_template = upgrade_cmds.get("copy_image", "copy {protocol}://{server}/{path}/{image} flash:/{image}")
         
-        # Inject values natively
+        # Inject values
         cmd = cmd_template.replace("{protocol}", fs.protocol)
         cmd = cmd.replace("{server}", f"{fs.ip}{port}")
         
@@ -193,7 +193,7 @@ class CiscoDistributeTask(BaseTask):
             return None
     
     def _flash_cleanup(self, conn) -> bool:
-        """Run flash cleanup mechanically by strictly extracting template from JSON architecture."""
+        """Run flash cleanup using the command defined in the JSON profile."""
         profile = self.ctx.device_info.extra.get('device_profile', {})
         upgrade_cmds = profile.get("upgrade_commands", {})
         cmd = upgrade_cmds.get("flash_cleanup", "install remove inactive")
@@ -211,10 +211,10 @@ class CiscoDistributeTask(BaseTask):
         return self._success(f"Successfully cleaned inactive files from flash", command=cmd)
 
     def _verify_md5(self, conn, filename: str, expected: str, dest: str) -> bool:
-        """Run verification mechanically by strictly extracting template from JSON architecture."""
+        """Run verification using the command defined in the JSON profile."""
         self._log(f"Verifying MD5 for {filename}…")
         
-        # Extract native syntax from profile payloads
+        # Build command from profile
         profile = self.ctx.device_info.extra.get('device_profile', {})
         upgrade_cmds = profile.get("upgrade_commands", {})
         cmd_template = upgrade_cmds.get("verify_image", "verify /md5 flash:/{image} {md5}")

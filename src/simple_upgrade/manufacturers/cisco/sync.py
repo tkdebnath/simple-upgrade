@@ -179,7 +179,7 @@ class CiscoSyncTask(BaseTask):
             else:
                 print(f"Warning: Profile requested group '{group_name}', but {group_file} does not exist.")
             
-        # Attach the single-source-of-truth profile to the data context
+        # Attach the matched device profile to the context
         self.ctx.device_info.extra['device_profile'] = resolved_profile
         data['device_profile_id'] = resolved_profile.get("model", "unknown")
 
