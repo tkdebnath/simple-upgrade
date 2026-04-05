@@ -36,6 +36,14 @@ COPY_DIALOG = Dialog([
     ),
 ])
 
+FLASH_CLEANUP_DIALOG = Dialog([
+    Statement(
+        pattern=r'Do you want to remove the above files\? \[y/n\]',
+        action='sendline(y)',
+        loop_continue=False,
+        continue_timer=False,
+    ),
+])
 
 @register_stage('distribute', 'cisco')
 class CiscoDistributeTask(BaseTask):
@@ -58,7 +66,15 @@ class CiscoDistributeTask(BaseTask):
         # Inject values natively
         cmd = cmd_template.replace("{protocol}", fs.protocol)
         cmd = cmd.replace("{server}", f"{fs.ip}{port}")
-        cmd = cmd.replace("{path}", base)
+        
+        if base:
+            cmd = cmd.replace("{path}", base)
+        else:
+            # Safely collapse template slashes if the image file sits directly on the server root
+            cmd = cmd.replace("/{path}/", "/")
+            cmd = cmd.replace("{path}/", "")
+            cmd = cmd.replace("{path}", "")
+            
         cmd = cmd.replace("{image}", img)
 
         # 2. Prepend VRF parameters specifically if strictly mapped
@@ -75,10 +91,12 @@ class CiscoDistributeTask(BaseTask):
         conn = self.unicon   # Unicon required for interactive prompt handling
         self.ctx.data['distribution_cmd'] = cmd
 
-        # ── Smart-skip: check if file already exists and is valid ──────────
+        # ── Skip: check if file already exists and is valid ──────────
         if self._file_valid(conn, img, dest):
             return self._success(f"{img} already present and verified, skipping download", command=cmd)
 
+        # ── clean inactive files from flash ──────────
+        self._flash_cleanup(conn)
         # ── Apply protocol-specific device configuration ────────────────────
         self._apply_protocol_config(conn, fs)
 
@@ -173,6 +191,24 @@ class CiscoDistributeTask(BaseTask):
             return int(m.group(1)) if m else None
         except Exception:
             return None
+    
+    def _flash_cleanup(self, conn) -> bool:
+        """Run flash cleanup mechanically by strictly extracting template from JSON architecture."""
+        profile = self.ctx.device_info.extra.get('device_profile', {})
+        upgrade_cmds = profile.get("upgrade_commands", {})
+        cmd = upgrade_cmds.get("flash_cleanup", "install remove inactive")
+        
+        if self.ctx.connection_mode != "normal":
+            return self._success(f"[MOCK] Would execute: {cmd}", command=cmd)
+
+        try:
+            # ── clean inactive files from flash ──────────
+            self._log(f"Starting native transfer sequence: {cmd}")
+            cleanup_result = conn.execute(cmd, timeout=600, reply=FLASH_CLEANUP_DIALOG)
+        except Exception as e:
+            return self._fail(f"Flash cleanup failed: {e}", command=cmd)
+
+        return self._success(f"Successfully cleaned inactive files from flash", command=cmd)
 
     def _verify_md5(self, conn, filename: str, expected: str, dest: str) -> bool:
         """Run verification mechanically by strictly extracting template from JSON architecture."""
