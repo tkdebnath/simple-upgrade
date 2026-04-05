@@ -5,7 +5,7 @@ description = "A modular, profile-driven Python orchestrator for network device 
 readme = "README.md"
 requires-python = ">=3.12"
 authors = [
-    { name = "Tarani Debnath", email = "tarani.debnath@example.com" }
+    { name = "Tarani Debnath", email = "16004445+tkdebnath@users.noreply.github.com" }
 ]
 license = { text = "MIT" }
 dependencies = [
