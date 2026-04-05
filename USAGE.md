@@ -58,7 +58,7 @@ pkg = UpgradePackage(
         "image_name": "cat9k_iosxe.17.13.01.SPA.bin",  # Filename only (no flash: prefix)
         "image_size": 1234567890,               # Expected file size in bytes
         "md5": "abc123def456...",                # MD5 checksum for verification
-        # "sha256": "...",                       # Optional SHA-256 checksum
+        "sha256": "def456ghi789...",             # Optional SHA-256 checksum
     },
 
     # ═══════════════════════════════════════════
@@ -69,8 +69,8 @@ pkg = UpgradePackage(
         "ip": "192.168.29.73",                  # Server IP address
         "port": 5000,                           # Server port (optional — omit for default)
         "base_path": "/Cisco/C9XXX/",           # URL path on the server
-        # "username": "ftpuser",                # FTP/SCP username (optional)
-        # "password": "ftppass",                # FTP/SCP password (optional)
+        "username": "ftpuser",                  # FTP/SCP username (optional)
+        "password": "ftppassword",              # FTP/SCP password (optional)
         # "source_interface": "Gi0/0",          # Can also be set here instead of top-level
         # "source_vrf": "Mgmt-vrf",             # Can also be set here instead of top-level
     }

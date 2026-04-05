@@ -28,12 +28,15 @@ def main():
             "image_name": "test_file_30M.bin",
             "image_size": 31457280,
             "md5": "281ed1d5ae50e8419f9b978aab16de83",
+            "sha256": "abcdef1234567890",
         },
         file_server={
             "protocol": "http",
             "ip": "192.168.29.73",
             "port": 5000,
-            "base_path": "/"
+            "base_path": "/",
+            "username": "ftpuser",
+            "password": "ftppassword",
         }
     )
 

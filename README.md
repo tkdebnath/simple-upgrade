@@ -11,8 +11,8 @@ A modular, profile-driven Python orchestrator for network device firmware upgrad
 ├──────────┬──────────┬───────────┬───────────────┤
 │   sync   │readiness │ pre_check │  distribute   │
 │          │          │           │               │
-│ activate │  wait    │post_check │ verification  │
-│          │          │           │     diff      │
+│ activate │post_acti-│post_check │ verification  │
+│          │vation_wait│          │     diff      │
 ├──────────┴──────────┴───────────┴───────────────┤
 │              ExecutionContext (ctx)               │
 │  Carries: device_info, golden_image, file_server │
@@ -87,6 +87,7 @@ pkg = UpgradePackage(
         "image_name": "cat9k_iosxe.17.13.01.SPA.bin",  # Filename (no flash: prefix)
         "image_size": 1234567890,               # Expected file size in bytes
         "md5": "abc123def456...",                # Expected MD5 checksum
+        "sha256": "def456ghi789...",             # Optional SHA-256 checksum
     },
 
     # ── File Server ──
@@ -95,6 +96,8 @@ pkg = UpgradePackage(
         "ip": "192.168.29.73",                  # File server IP
         "port": 80,                             # Server port (optional)
         "base_path": "/Cisco/C9XXX/",           # URL path on server
+        "username": "ftpuser",                  # FTP/SCP username (optional)
+        "password": "ftppassword",              # FTP/SCP password (optional)
     }
 )
 
