@@ -1,12 +1,14 @@
 import pytest
 from unittest.mock import MagicMock
+import sys
+import os
+
+root_dir = os.path.dirname(os.path.dirname(__file__))
+sys.path.insert(0, os.path.join(root_dir, "src"))
+
 from simple_upgrade.upgrade_package import UpgradePackage
 from simple_upgrade.base import StageResult
 
-# -------------------------------------------------------------------------
-# Pytest uses 'fixtures' for setup instead of a class-based setUp() method.
-# In the CCIE DevNet exam, you will use fixtures heavily for dependency injection.
-# -------------------------------------------------------------------------
 
 @pytest.fixture
 def mock_upgrade_package(monkeypatch):

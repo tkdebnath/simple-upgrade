@@ -1,16 +1,17 @@
 import unittest
 from unittest.mock import patch, MagicMock
 
+import sys
+import os
+
+root_dir = os.path.dirname(os.path.dirname(__file__))
+sys.path.insert(0, os.path.join(root_dir, "src"))
+
 # Import the class we want to test
 from simple_upgrade.upgrade_package import UpgradePackage
 from simple_upgrade.base import StageResult
 
 class TestUpgradePackage(unittest.TestCase):
-    """
-    This is an example of CCIE-Automation style tests using the standard 'unittest' library.
-    It demonstrates how to mock an external dependency (the ConnectionManager) so we
-    don't actually connect to real network devices during the test.
-    """
 
     @patch('simple_upgrade.upgrade_package.ConnectionManager')
     def setUp(self, MockConnectionManager):
