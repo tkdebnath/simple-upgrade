@@ -6,7 +6,6 @@ readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
     "scrapli[textfsm,ssh2]>=2026.2.20",
-    "netmiko>=4.6.0",
     "pyats>=26.2",
     "genie>=26.2",
     "rich>=14.3.3",
@@ -21,4 +20,10 @@ dependencies = [
 dev = [
     "pytest>=9.0.2",
     "pytest-asyncio>=1.3.0",
+]
+
+[dependency-groups]
+dev = [
+    "black>=25.12.0",
+    "flake8>=7.3.0",
 ]
